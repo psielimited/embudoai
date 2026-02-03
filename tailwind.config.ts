@@ -57,6 +57,21 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        status: {
+          active: "hsl(var(--status-active))",
+          inactive: "hsl(var(--status-inactive))",
+          open: "hsl(var(--status-open))",
+          closed: "hsl(var(--status-closed))",
+          handoff: "hsl(var(--status-handoff))",
+        },
+        sender: {
+          user: "hsl(var(--sender-user))",
+          "user-foreground": "hsl(var(--sender-user-foreground))",
+          ai: "hsl(var(--sender-ai))",
+          "ai-foreground": "hsl(var(--sender-ai-foreground))",
+          human: "hsl(var(--sender-human))",
+          "human-foreground": "hsl(var(--sender-human-foreground))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
