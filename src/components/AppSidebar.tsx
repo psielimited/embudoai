@@ -1,4 +1,4 @@
-import { Store, MessageSquare, LayoutDashboard } from "lucide-react";
+import { Store, MessageSquare, LayoutDashboard, Kanban, Zap } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
   Sidebar,
@@ -20,9 +20,19 @@ const navigation = [
     icon: LayoutDashboard,
   },
   {
+    title: "Pipeline",
+    url: "/pipeline",
+    icon: Kanban,
+  },
+  {
     title: "Merchants",
     url: "/merchants",
     icon: Store,
+  },
+  {
+    title: "Automations",
+    url: "/automation",
+    icon: Zap,
   },
 ];
 
