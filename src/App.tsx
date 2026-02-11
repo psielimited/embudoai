@@ -9,6 +9,9 @@ import Dashboard from "@/pages/Dashboard";
 import MerchantList from "@/pages/MerchantList";
 import MerchantConversations from "@/pages/MerchantConversations";
 import ConversationDetail from "@/pages/ConversationDetail";
+import PipelineBoard from "@/pages/PipelineBoard";
+import OpportunityDetail from "@/pages/OpportunityDetail";
+import AutomationRules from "@/pages/AutomationRules";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/NotFound";
 
@@ -28,6 +31,36 @@ const App = () => (
               <ProtectedRoute>
                 <DashboardLayout>
                   <Dashboard />
+                </DashboardLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/pipeline"
+            element={
+              <ProtectedRoute>
+                <DashboardLayout>
+                  <PipelineBoard />
+                </DashboardLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/pipeline/opportunities/:opportunityId"
+            element={
+              <ProtectedRoute>
+                <DashboardLayout>
+                  <OpportunityDetail />
+                </DashboardLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/automation"
+            element={
+              <ProtectedRoute>
+                <DashboardLayout>
+                  <AutomationRules />
                 </DashboardLayout>
               </ProtectedRoute>
             }

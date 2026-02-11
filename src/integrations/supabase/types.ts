@@ -432,6 +432,15 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["app_role"]
       }
+      rpc_move_opportunity_stage: {
+        Args: {
+          p_actor_user_id: string
+          p_expected_version: number
+          p_opportunity_id: string
+          p_to_stage_id: string
+        }
+        Returns: Json
+      }
     }
     Enums: {
       app_role: "admin" | "manager" | "rep"
