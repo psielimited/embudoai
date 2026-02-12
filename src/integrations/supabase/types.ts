@@ -44,6 +44,44 @@ export type Database = {
         }
         Relationships: []
       }
+      analytics_daily: {
+        Row: {
+          created_at: string
+          day: string
+          id: string
+          metric: string
+          owner_user_id: string | null
+          pipeline_id: string
+          value: number
+        }
+        Insert: {
+          created_at?: string
+          day: string
+          id?: string
+          metric: string
+          owner_user_id?: string | null
+          pipeline_id: string
+          value?: number
+        }
+        Update: {
+          created_at?: string
+          day?: string
+          id?: string
+          metric?: string
+          owner_user_id?: string | null
+          pipeline_id?: string
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "analytics_daily_pipeline_id_fkey"
+            columns: ["pipeline_id"]
+            isOneToOne: false
+            referencedRelation: "pipelines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_events: {
         Row: {
           actor_user_id: string
@@ -206,6 +244,42 @@ export type Database = {
           },
         ]
       }
+      notifications: {
+        Row: {
+          body: string | null
+          created_at: string
+          entity_id: string | null
+          entity_type: string | null
+          id: string
+          read_at: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          read_at?: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          read_at?: string | null
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       opportunities: {
         Row: {
           amount: number | null
@@ -311,6 +385,39 @@ export type Database = {
           role?: Database["public"]["Enums"]["app_role"]
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      sla_events: {
+        Row: {
+          created_at: string
+          details: Json
+          entity_id: string
+          entity_type: string
+          id: string
+          resolved_at: string | null
+          severity: string
+          sla_type: string
+        }
+        Insert: {
+          created_at?: string
+          details?: Json
+          entity_id: string
+          entity_type?: string
+          id?: string
+          resolved_at?: string | null
+          severity?: string
+          sla_type: string
+        }
+        Update: {
+          created_at?: string
+          details?: Json
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          resolved_at?: string | null
+          severity?: string
+          sla_type?: string
         }
         Relationships: []
       }
@@ -424,7 +531,51 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      v_funnel_counts: {
+        Row: {
+          day: string | null
+          entries: number | null
+          pipeline_id: string | null
+          stage_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "opportunities_pipeline_id_fkey"
+            columns: ["pipeline_id"]
+            isOneToOne: false
+            referencedRelation: "pipelines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_rep_performance_daily: {
+        Row: {
+          activities_count: number | null
+          day: string | null
+          owner_user_id: string | null
+          tasks_created: number | null
+          tasks_overdue_count: number | null
+        }
+        Relationships: []
+      }
+      v_time_in_stage: {
+        Row: {
+          duration_hours: number | null
+          entered_at: string | null
+          exited_at: string | null
+          opportunity_id: string | null
+          stage_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_events_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "opportunities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       get_my_manager: { Args: never; Returns: string }
