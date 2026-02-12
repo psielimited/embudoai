@@ -14,3 +14,6 @@ verify_jwt = false
 
 [functions.generate-report-csv]
 verify_jwt = false
+
+[functions.set-active-org]
+verify_jwt = false

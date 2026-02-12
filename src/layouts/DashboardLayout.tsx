@@ -3,6 +3,7 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { UserMenu } from "@/components/UserMenu";
 import { NotificationBell } from "@/components/NotificationBell";
+import { OrgSwitcher } from "@/components/OrgSwitcher";
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -15,7 +16,10 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         <AppSidebar />
         <main className="flex-1 flex flex-col">
           <header className="h-14 border-b border-border bg-card px-6 flex items-center justify-between">
-            <SidebarTrigger />
+            <div className="flex items-center gap-3">
+              <SidebarTrigger />
+              <OrgSwitcher />
+            </div>
             <div className="flex items-center gap-2">
               <NotificationBell />
               <UserMenu />

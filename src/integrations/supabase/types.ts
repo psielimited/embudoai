@@ -23,6 +23,7 @@ export type Database = {
           entity_id: string
           entity_type: string
           id: string
+          org_id: string
         }
         Insert: {
           activity_type: string
@@ -32,6 +33,7 @@ export type Database = {
           entity_id: string
           entity_type?: string
           id?: string
+          org_id: string
         }
         Update: {
           activity_type?: string
@@ -41,8 +43,17 @@ export type Database = {
           entity_id?: string
           entity_type?: string
           id?: string
+          org_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "activities_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       analytics_daily: {
         Row: {
@@ -50,6 +61,7 @@ export type Database = {
           day: string
           id: string
           metric: string
+          org_id: string
           owner_user_id: string | null
           pipeline_id: string
           value: number
@@ -59,6 +71,7 @@ export type Database = {
           day: string
           id?: string
           metric: string
+          org_id: string
           owner_user_id?: string | null
           pipeline_id: string
           value?: number
@@ -68,11 +81,19 @@ export type Database = {
           day?: string
           id?: string
           metric?: string
+          org_id?: string
           owner_user_id?: string | null
           pipeline_id?: string
           value?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "analytics_daily_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "analytics_daily_pipeline_id_fkey"
             columns: ["pipeline_id"]
@@ -90,6 +111,7 @@ export type Database = {
           event_type: string
           id: string
           opportunity_id: string
+          org_id: string
         }
         Insert: {
           actor_user_id: string
@@ -98,6 +120,7 @@ export type Database = {
           event_type: string
           id?: string
           opportunity_id: string
+          org_id: string
         }
         Update: {
           actor_user_id?: string
@@ -106,6 +129,7 @@ export type Database = {
           event_type?: string
           id?: string
           opportunity_id?: string
+          org_id?: string
         }
         Relationships: [
           {
@@ -113,6 +137,13 @@ export type Database = {
             columns: ["opportunity_id"]
             isOneToOne: false
             referencedRelation: "opportunities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_events_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
             referencedColumns: ["id"]
           },
         ]
@@ -125,6 +156,7 @@ export type Database = {
           id: string
           is_active: boolean
           name: string
+          org_id: string
           trigger_type: string
           updated_at: string
         }
@@ -135,6 +167,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           name: string
+          org_id: string
           trigger_type: string
           updated_at?: string
         }
@@ -145,10 +178,19 @@ export type Database = {
           id?: string
           is_active?: boolean
           name?: string
+          org_id?: string
           trigger_type?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "automation_rules_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       conversations: {
         Row: {
@@ -251,6 +293,7 @@ export type Database = {
           entity_id: string | null
           entity_type: string | null
           id: string
+          org_id: string
           read_at: string | null
           title: string
           type: string
@@ -262,6 +305,7 @@ export type Database = {
           entity_id?: string | null
           entity_type?: string | null
           id?: string
+          org_id: string
           read_at?: string | null
           title: string
           type: string
@@ -273,12 +317,21 @@ export type Database = {
           entity_id?: string | null
           entity_type?: string | null
           id?: string
+          org_id?: string
           read_at?: string | null
           title?: string
           type?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "notifications_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       opportunities: {
         Row: {
@@ -287,6 +340,7 @@ export type Database = {
           expected_close_date: string | null
           id: string
           name: string
+          org_id: string
           owner_user_id: string
           pipeline_id: string
           stage_id: string
@@ -300,6 +354,7 @@ export type Database = {
           expected_close_date?: string | null
           id?: string
           name: string
+          org_id: string
           owner_user_id: string
           pipeline_id: string
           stage_id: string
@@ -313,6 +368,7 @@ export type Database = {
           expected_close_date?: string | null
           id?: string
           name?: string
+          org_id?: string
           owner_user_id?: string
           pipeline_id?: string
           stage_id?: string
@@ -321,6 +377,13 @@ export type Database = {
           version?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "opportunities_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "opportunities_pipeline_id_fkey"
             columns: ["pipeline_id"]
@@ -337,29 +400,88 @@ export type Database = {
           },
         ]
       }
+      org_members: {
+        Row: {
+          created_at: string
+          org_id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          org_id: string
+          role: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          org_id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_members_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orgs: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
       pipelines: {
         Row: {
           created_at: string
           id: string
           is_default: boolean
           name: string
+          org_id: string
         }
         Insert: {
           created_at?: string
           id?: string
           is_default?: boolean
           name: string
+          org_id: string
         }
         Update: {
           created_at?: string
           id?: string
           is_default?: boolean
           name?: string
+          org_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "pipelines_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
+          active_org_id: string | null
           created_at: string
           full_name: string | null
           id: string
@@ -369,6 +491,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          active_org_id?: string | null
           created_at?: string
           full_name?: string | null
           id?: string
@@ -378,6 +501,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          active_org_id?: string | null
           created_at?: string
           full_name?: string | null
           id?: string
@@ -386,7 +510,15 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_active_org_id_fkey"
+            columns: ["active_org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       sla_events: {
         Row: {
@@ -395,6 +527,7 @@ export type Database = {
           entity_id: string
           entity_type: string
           id: string
+          org_id: string
           resolved_at: string | null
           severity: string
           sla_type: string
@@ -405,6 +538,7 @@ export type Database = {
           entity_id: string
           entity_type?: string
           id?: string
+          org_id: string
           resolved_at?: string | null
           severity?: string
           sla_type: string
@@ -415,16 +549,26 @@ export type Database = {
           entity_id?: string
           entity_type?: string
           id?: string
+          org_id?: string
           resolved_at?: string | null
           severity?: string
           sla_type?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "sla_events_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       stage_gates: {
         Row: {
           created_at: string
           id: string
+          org_id: string
           required_activity_types: string[]
           required_fields: string[]
           stage_id: string
@@ -432,6 +576,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          org_id: string
           required_activity_types?: string[]
           required_fields?: string[]
           stage_id: string
@@ -439,11 +584,19 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          org_id?: string
           required_activity_types?: string[]
           required_fields?: string[]
           stage_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "stage_gates_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "stage_gates_stage_id_fkey"
             columns: ["stage_id"]
@@ -458,6 +611,7 @@ export type Database = {
           created_at: string
           id: string
           name: string
+          org_id: string
           pipeline_id: string
           position: number
         }
@@ -465,6 +619,7 @@ export type Database = {
           created_at?: string
           id?: string
           name: string
+          org_id: string
           pipeline_id: string
           position?: number
         }
@@ -472,10 +627,18 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string
+          org_id?: string
           pipeline_id?: string
           position?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "stages_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "stages_pipeline_id_fkey"
             columns: ["pipeline_id"]
@@ -494,6 +657,7 @@ export type Database = {
           due_at: string | null
           id: string
           opportunity_id: string
+          org_id: string
           title: string
           updated_at: string
         }
@@ -505,6 +669,7 @@ export type Database = {
           due_at?: string | null
           id?: string
           opportunity_id: string
+          org_id: string
           title: string
           updated_at?: string
         }
@@ -516,6 +681,7 @@ export type Database = {
           due_at?: string | null
           id?: string
           opportunity_id?: string
+          org_id?: string
           title?: string
           updated_at?: string
         }
@@ -527,6 +693,71 @@ export type Database = {
             referencedRelation: "opportunities"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "tasks_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      team_members: {
+        Row: {
+          created_at: string
+          is_team_manager: boolean
+          team_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          is_team_manager?: boolean
+          team_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          is_team_manager?: boolean
+          team_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_members_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teams: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          org_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          org_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teams_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
         ]
       }
     }
@@ -535,10 +766,18 @@ export type Database = {
         Row: {
           day: string | null
           entries: number | null
+          org_id: string | null
           pipeline_id: string | null
           stage_id: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "opportunities_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "opportunities_pipeline_id_fkey"
             columns: ["pipeline_id"]
@@ -552,11 +791,20 @@ export type Database = {
         Row: {
           activities_count: number | null
           day: string | null
+          org_id: string | null
           owner_user_id: string | null
           tasks_created: number | null
           tasks_overdue_count: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "opportunities_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       v_time_in_stage: {
         Row: {
@@ -564,6 +812,7 @@ export type Database = {
           entered_at: string | null
           exited_at: string | null
           opportunity_id: string | null
+          org_id: string | null
           stage_id: string | null
         }
         Relationships: [
@@ -574,15 +823,26 @@ export type Database = {
             referencedRelation: "opportunities"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "opportunities_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
         ]
       }
     }
     Functions: {
+      get_active_org_id: { Args: never; Returns: string }
       get_my_manager: { Args: never; Returns: string }
       get_my_role: {
         Args: never
         Returns: Database["public"]["Enums"]["app_role"]
       }
+      get_org_role: { Args: { p_org_id: string }; Returns: string }
+      get_team_user_ids: { Args: { p_org_id: string }; Returns: string[] }
+      is_org_member: { Args: { p_org_id: string }; Returns: boolean }
       rpc_move_opportunity_stage: {
         Args: {
           p_actor_user_id: string

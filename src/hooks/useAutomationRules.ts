@@ -1,6 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
+async function getActiveOrgId(): Promise<string> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+  const { data } = await supabase.from("profiles").select("active_org_id").eq("user_id", user.id).single();
+  if (!data?.active_org_id) throw new Error("No active org");
+  return data.active_org_id;
+}
+
 export interface AutomationRule {
   id: string;
   name: string;
@@ -40,9 +48,10 @@ export function useCreateAutomationRule() {
       conditions: Record<string, any>;
       actions: any[];
     }) => {
+      const orgId = await getActiveOrgId();
       const { data, error } = await supabase
         .from("automation_rules")
-        .insert(rule)
+        .insert({ ...rule, org_id: orgId })
         .select()
         .single();
       if (error) throw error;
