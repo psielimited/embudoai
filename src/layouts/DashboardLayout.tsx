@@ -2,6 +2,7 @@ import { ReactNode } from "react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { UserMenu } from "@/components/UserMenu";
+import { NotificationBell } from "@/components/NotificationBell";
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -15,7 +16,10 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         <main className="flex-1 flex flex-col">
           <header className="h-14 border-b border-border bg-card px-6 flex items-center justify-between">
             <SidebarTrigger />
-            <UserMenu />
+            <div className="flex items-center gap-2">
+              <NotificationBell />
+              <UserMenu />
+            </div>
           </header>
           <div className="flex-1 p-6">
             {children}

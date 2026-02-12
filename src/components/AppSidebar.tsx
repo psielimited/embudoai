@@ -1,39 +1,18 @@
-import { Store, MessageSquare, LayoutDashboard, Kanban, Zap } from "lucide-react";
+import { Store, MessageSquare, LayoutDashboard, Kanban, Zap, AlertTriangle, FileSpreadsheet } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
-  Sidebar,
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarHeader,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
+  Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
+  SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 
 const navigation = [
-  {
-    title: "Dashboard",
-    url: "/",
-    icon: LayoutDashboard,
-  },
-  {
-    title: "Pipeline",
-    url: "/pipeline",
-    icon: Kanban,
-  },
-  {
-    title: "Merchants",
-    url: "/merchants",
-    icon: Store,
-  },
-  {
-    title: "Automations",
-    url: "/automation",
-    icon: Zap,
-  },
+  { title: "Dashboard", url: "/", icon: LayoutDashboard },
+  { title: "Pipeline", url: "/pipeline", icon: Kanban },
+  { title: "Merchants", url: "/merchants", icon: Store },
+  { title: "Automations", url: "/automation", icon: Zap },
+  { title: "SLA Breaches", url: "/dashboard/sla", icon: AlertTriangle },
+  { title: "Reports", url: "/dashboard/reports", icon: FileSpreadsheet },
 ];
 
 export function AppSidebar() {
@@ -60,7 +39,7 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {navigation.map((item) => {
-                const isActive = location.pathname === item.url || 
+                const isActive = location.pathname === item.url ||
                   (item.url !== "/" && location.pathname.startsWith(item.url));
                 return (
                   <SidebarMenuItem key={item.title}>
