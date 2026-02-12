@@ -34,22 +34,34 @@ export default function OrgUsers() {
     if (!activeOrgId || !email.trim()) return;
 
     try {
-      // Look up user by email via profiles (we can't query auth.users)
-      // Instead we'll use the service client approach - but from client side
-      // we need to search profiles by full_name (which is set to email on signup)
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, full_name")
-        .ilike("full_name", email.trim());
+      // Look up user by email via edge function (uses admin API)
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { toast.error("Not authenticated"); return; }
 
-      if (!profiles || profiles.length === 0) {
-        toast.error("User not found. They must sign up first.");
+      const resp = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/find-user-by-email`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+          body: JSON.stringify({ email: email.trim() }),
+        }
+      );
+
+      if (!resp.ok) {
+        const body = await resp.json().catch(() => ({}));
+        toast.error(body.error || "User not found. They must sign up first.");
         return;
       }
 
+      const found = await resp.json();
+
       await addMember.mutateAsync({
         org_id: activeOrgId,
-        user_id: profiles[0].user_id,
+        user_id: found.user_id,
         role,
       });
       toast.success("Member added");
