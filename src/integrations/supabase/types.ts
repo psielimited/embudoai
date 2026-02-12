@@ -108,27 +108,33 @@ export type Database = {
           actor_user_id: string
           created_at: string
           diff: Json
+          entity_id: string | null
+          entity_type: string
           event_type: string
           id: string
-          opportunity_id: string
+          opportunity_id: string | null
           org_id: string
         }
         Insert: {
           actor_user_id: string
           created_at?: string
           diff?: Json
+          entity_id?: string | null
+          entity_type?: string
           event_type: string
           id?: string
-          opportunity_id: string
+          opportunity_id?: string | null
           org_id: string
         }
         Update: {
           actor_user_id?: string
           created_at?: string
           diff?: Json
+          entity_id?: string | null
+          entity_type?: string
           event_type?: string
           id?: string
-          opportunity_id?: string
+          opportunity_id?: string | null
           org_id?: string
         }
         Relationships: [
@@ -192,6 +198,56 @@ export type Database = {
           },
         ]
       }
+      contacts: {
+        Row: {
+          addresses: Json
+          created_at: string
+          doc_id: string | null
+          emails: Json
+          full_name: string
+          id: string
+          org_id: string
+          owner_user_id: string | null
+          phones: Json
+          tags: Json
+          updated_at: string
+        }
+        Insert: {
+          addresses?: Json
+          created_at?: string
+          doc_id?: string | null
+          emails?: Json
+          full_name: string
+          id?: string
+          org_id: string
+          owner_user_id?: string | null
+          phones?: Json
+          tags?: Json
+          updated_at?: string
+        }
+        Update: {
+          addresses?: Json
+          created_at?: string
+          doc_id?: string | null
+          emails?: Json
+          full_name?: string
+          id?: string
+          org_id?: string
+          owner_user_id?: string | null
+          phones?: Json
+          tags?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contacts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversations: {
         Row: {
           created_at: string
@@ -229,6 +285,212 @@ export type Database = {
             columns: ["merchant_id"]
             isOneToOne: false
             referencedRelation: "merchants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dedupe_rules: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          keys: Json
+          name: string
+          org_id: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          keys: Json
+          name: string
+          org_id: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          keys?: Json
+          name?: string
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dedupe_rules_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      import_jobs: {
+        Row: {
+          created_at: string
+          created_by: string
+          error_report_path: string | null
+          file_path: string | null
+          id: string
+          mapping: Json
+          org_id: string
+          stats: Json
+          status: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          error_report_path?: string | null
+          file_path?: string | null
+          id?: string
+          mapping?: Json
+          org_id: string
+          stats?: Json
+          status?: string
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          error_report_path?: string | null
+          file_path?: string | null
+          id?: string
+          mapping?: Json
+          org_id?: string
+          stats?: Json
+          status?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "import_jobs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_matches: {
+        Row: {
+          created_at: string
+          id: string
+          lead_id: string
+          match_reason: string
+          matched_entity_id: string
+          matched_entity_type: string
+          org_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lead_id: string
+          match_reason: string
+          matched_entity_id: string
+          matched_entity_type: string
+          org_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lead_id?: string
+          match_reason?: string
+          matched_entity_id?: string
+          matched_entity_type?: string
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_matches_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_matches_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leads: {
+        Row: {
+          consent: Json
+          converted_contact_id: string | null
+          created_at: string
+          emails: Json
+          full_name: string
+          id: string
+          org_id: string
+          owner_user_id: string | null
+          phones: Json
+          source: string
+          stage_id: string | null
+          status: string
+          tags: Json
+          updated_at: string
+          utm: Json
+        }
+        Insert: {
+          consent?: Json
+          converted_contact_id?: string | null
+          created_at?: string
+          emails?: Json
+          full_name: string
+          id?: string
+          org_id: string
+          owner_user_id?: string | null
+          phones?: Json
+          source?: string
+          stage_id?: string | null
+          status?: string
+          tags?: Json
+          updated_at?: string
+          utm?: Json
+        }
+        Update: {
+          consent?: Json
+          converted_contact_id?: string | null
+          created_at?: string
+          emails?: Json
+          full_name?: string
+          id?: string
+          org_id?: string
+          owner_user_id?: string | null
+          phones?: Json
+          source?: string
+          stage_id?: string | null
+          status?: string
+          tags?: Json
+          updated_at?: string
+          utm?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leads_converted_contact_id_fkey"
+            columns: ["converted_contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "stages"
             referencedColumns: ["id"]
           },
         ]

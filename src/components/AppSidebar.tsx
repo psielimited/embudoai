@@ -1,6 +1,7 @@
 import {
   Store, MessageSquare, LayoutDashboard, Kanban, Zap,
   AlertTriangle, FileSpreadsheet, Building2, Users, Shield,
+  UserPlus, Contact2, Upload,
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
@@ -12,10 +13,13 @@ import { cn } from "@/lib/utils";
 const mainNav = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Pipeline", url: "/pipeline", icon: Kanban },
+  { title: "Leads", url: "/leads", icon: UserPlus },
+  { title: "Contacts", url: "/contacts", icon: Contact2 },
   { title: "Merchants", url: "/merchants", icon: Store },
   { title: "Automations", url: "/automation", icon: Zap },
   { title: "SLA Breaches", url: "/dashboard/sla", icon: AlertTriangle },
   { title: "Reports", url: "/dashboard/reports", icon: FileSpreadsheet },
+  { title: "Imports", url: "/imports", icon: Upload },
 ];
 
 const orgNav = [
