@@ -1,10 +1,8 @@
 /**
  * Edge Function: move-opportunity-stage
- * 
- * Endpoint: POST /functions/v1/move-opportunity-stage
- * Authenticates user, authorizes access (rep/manager/admin), calls RPC.
+ * Authenticates user, authorizes access, calls RPC.
  * After success, executes automation rules (Phase 4).
- * Returns 200 on success, 409 on gate/version failure, 403 on auth failure.
+ * Org-aware: validates entity.org_id matches user's active org.
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -19,24 +17,21 @@ interface AutomationAction {
   type: "create_task" | "assign_owner";
   title?: string;
   due_in_hours?: number;
-  assigned_to?: string; // "owner" | "manager" | uuid
-  user_id?: string; // for assign_owner
+  assigned_to?: string;
+  user_id?: string;
 }
 
 async function executeAutomationRules(
-  serviceClient: any,
-  opportunityId: string,
-  fromStageId: string,
-  toStageId: string,
-  pipelineId: string,
-  ownerUserId: string,
+  serviceClient: any, opportunityId: string, fromStageId: string,
+  toStageId: string, pipelineId: string, ownerUserId: string, orgId: string,
 ) {
   try {
     const { data: rules } = await serviceClient
       .from("automation_rules")
       .select("*")
       .eq("trigger_type", "stage_changed")
-      .eq("is_active", true);
+      .eq("is_active", true)
+      .eq("org_id", orgId);
 
     if (!rules || rules.length === 0) return;
 
@@ -51,12 +46,23 @@ async function executeAutomationRules(
         if (action.type === "create_task") {
           let assignedTo = ownerUserId;
           if (action.assigned_to === "manager") {
-            const { data: profile } = await serviceClient
-              .from("profiles")
-              .select("manager_user_id")
-              .eq("user_id", ownerUserId)
-              .single();
-            if (profile?.manager_user_id) assignedTo = profile.manager_user_id;
+            const { data: tms } = await serviceClient
+              .from("team_members")
+              .select("team_id, is_team_manager")
+              .eq("user_id", ownerUserId);
+            if (tms) {
+              for (const tm of tms) {
+                if (!tm.is_team_manager) {
+                  const { data: mgrs } = await serviceClient
+                    .from("team_members")
+                    .select("user_id")
+                    .eq("team_id", tm.team_id)
+                    .eq("is_team_manager", true)
+                    .limit(1);
+                  if (mgrs?.[0]) { assignedTo = mgrs[0].user_id; break; }
+                }
+              }
+            }
           } else if (action.assigned_to && action.assigned_to !== "owner") {
             assignedTo = action.assigned_to;
           }
@@ -71,6 +77,7 @@ async function executeAutomationRules(
             due_at: dueAt,
             assigned_to: assignedTo,
             created_by: ownerUserId,
+            org_id: orgId,
           });
         } else if (action.type === "assign_owner" && action.user_id) {
           await serviceClient
@@ -82,19 +89,15 @@ async function executeAutomationRules(
     }
   } catch (err) {
     console.error("Automation rule execution error:", err);
-    // Non-fatal: don't fail the stage move
   }
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "Method not allowed" }), {
-      status: 405,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 405, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
@@ -102,12 +105,10 @@ Deno.serve(async (req) => {
   const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-  // Authenticate user
   const authHeader = req.headers.get("Authorization");
   if (!authHeader?.startsWith("Bearer ")) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
@@ -119,24 +120,38 @@ Deno.serve(async (req) => {
   const { data: claimsData, error: claimsError } = await userClient.auth.getClaims(token);
   if (claimsError || !claimsData?.claims) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
   const userId = claimsData.claims.sub as string;
-
   const serviceClient = createClient(supabaseUrl, supabaseServiceKey);
+
+  // Get user's active org and org role
   const { data: profile } = await serviceClient
     .from("profiles")
-    .select("role, manager_user_id")
+    .select("active_org_id")
     .eq("user_id", userId)
     .single();
 
-  if (!profile) {
-    return new Response(JSON.stringify({ error: "Profile not found" }), {
-      status: 403,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+  if (!profile?.active_org_id) {
+    return new Response(JSON.stringify({ error: "No active organization" }), {
+      status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  const activeOrgId = profile.active_org_id;
+
+  const { data: membership } = await serviceClient
+    .from("org_members")
+    .select("role")
+    .eq("org_id", activeOrgId)
+    .eq("user_id", userId)
+    .single();
+
+  if (!membership) {
+    return new Response(JSON.stringify({ error: "Not a member of active org" }), {
+      status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
@@ -151,43 +166,38 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Authorization check
     const { data: opp } = await serviceClient
       .from("opportunities")
-      .select("owner_user_id, pipeline_id, stage_id")
+      .select("owner_user_id, pipeline_id, stage_id, org_id")
       .eq("id", opportunity_id)
       .single();
 
     if (!opp) {
       return new Response(JSON.stringify({ error: "Opportunity not found" }), {
-        status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const role = profile.role;
+    // Org isolation check
+    if (opp.org_id !== activeOrgId) {
+      return new Response(JSON.stringify({ error: "Forbidden" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const role = membership.role;
     const isOwner = opp.owner_user_id === userId;
 
     if (role === "rep" && !isOwner) {
       return new Response(JSON.stringify({ error: "Forbidden" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    if (role === "manager" && !isOwner) {
-      const { data: ownerProfile } = await serviceClient
-        .from("profiles")
-        .select("manager_user_id")
-        .eq("user_id", opp.owner_user_id)
-        .single();
-
-      if (!ownerProfile || ownerProfile.manager_user_id !== userId) {
-        return new Response(JSON.stringify({ error: "Forbidden" }), {
-          status: 403,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
+    if (role === "analyst") {
+      return new Response(JSON.stringify({ error: "Analysts cannot move opportunities" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // Call RPC
@@ -204,8 +214,7 @@ Deno.serve(async (req) => {
     if (rpcError) {
       console.error("RPC error:", rpcError);
       return new Response(JSON.stringify({ error: "Internal server error" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -214,34 +223,24 @@ Deno.serve(async (req) => {
     if (!rpcResult.ok) {
       const status =
         rpcResult.error_code === "VERSION_CONFLICT" || rpcResult.error_code === "STAGE_GATE_FAILED"
-          ? 409
-          : 400;
+          ? 409 : 400;
       return new Response(JSON.stringify(rpcResult), {
-        status,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Phase 4: Execute automation rules after successful stage change
-    console.log(`Stage move success: opp=${opportunity_id} ${opp.stage_id} -> ${to_stage_id} by user=${userId}`);
     await executeAutomationRules(
-      serviceClient,
-      opportunity_id,
-      opp.stage_id,
-      to_stage_id,
-      opp.pipeline_id,
-      opp.owner_user_id,
+      serviceClient, opportunity_id, opp.stage_id, to_stage_id,
+      opp.pipeline_id, opp.owner_user_id, activeOrgId,
     );
 
     return new Response(JSON.stringify(rpcResult), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
     console.error("Unexpected error:", err);
     return new Response(JSON.stringify({ error: "Internal server error" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });

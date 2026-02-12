@@ -1,4 +1,7 @@
-import { Store, MessageSquare, LayoutDashboard, Kanban, Zap, AlertTriangle, FileSpreadsheet } from "lucide-react";
+import {
+  Store, MessageSquare, LayoutDashboard, Kanban, Zap,
+  AlertTriangle, FileSpreadsheet, Building2, Users, Shield,
+} from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
@@ -6,7 +9,7 @@ import {
 } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 
-const navigation = [
+const mainNav = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Pipeline", url: "/pipeline", icon: Kanban },
   { title: "Merchants", url: "/merchants", icon: Store },
@@ -15,8 +18,38 @@ const navigation = [
   { title: "Reports", url: "/dashboard/reports", icon: FileSpreadsheet },
 ];
 
+const orgNav = [
+  { title: "Org Settings", url: "/org/settings", icon: Building2 },
+  { title: "Users", url: "/org/users", icon: Users },
+  { title: "Teams", url: "/org/teams", icon: Shield },
+];
+
 export function AppSidebar() {
   const location = useLocation();
+
+  const renderItems = (items: typeof mainNav) =>
+    items.map((item) => {
+      const isActive = location.pathname === item.url ||
+        (item.url !== "/" && location.pathname.startsWith(item.url));
+      return (
+        <SidebarMenuItem key={item.title}>
+          <SidebarMenuButton asChild>
+            <NavLink
+              to={item.url}
+              className={cn(
+                "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
+                isActive
+                  ? "bg-primary text-primary-foreground font-medium"
+                  : "text-sidebar-foreground hover:bg-sidebar-accent"
+              )}
+            >
+              <item.icon className="h-4 w-4" />
+              <span>{item.title}</span>
+            </NavLink>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      );
+    });
 
   return (
     <Sidebar className="border-r border-sidebar-border">
@@ -27,7 +60,7 @@ export function AppSidebar() {
           </div>
           <div>
             <h1 className="font-semibold text-sidebar-foreground">EmbudoAI</h1>
-            <p className="text-xs text-muted-foreground">Admin Dashboard</p>
+            <p className="text-xs text-muted-foreground">CRM Dashboard</p>
           </div>
         </div>
       </SidebarHeader>
@@ -37,30 +70,15 @@ export function AppSidebar() {
             Navigation
           </SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu>
-              {navigation.map((item) => {
-                const isActive = location.pathname === item.url ||
-                  (item.url !== "/" && location.pathname.startsWith(item.url));
-                return (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild>
-                      <NavLink
-                        to={item.url}
-                        className={cn(
-                          "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
-                          isActive
-                            ? "bg-primary text-primary-foreground font-medium"
-                            : "text-sidebar-foreground hover:bg-sidebar-accent"
-                        )}
-                      >
-                        <item.icon className="h-4 w-4" />
-                        <span>{item.title}</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
+            <SidebarMenu>{renderItems(mainNav)}</SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-xs font-medium text-muted-foreground uppercase tracking-wider px-3 mb-2 mt-4">
+            Organization
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>{renderItems(orgNav)}</SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>

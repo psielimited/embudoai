@@ -14,15 +14,16 @@ import OpportunityDetail from "@/pages/OpportunityDetail";
 import AutomationRules from "@/pages/AutomationRules";
 import SlaBreaches from "@/pages/SlaBreaches";
 import Reports from "@/pages/Reports";
+import OrgSettings from "@/pages/OrgSettings";
+import OrgUsers from "@/pages/OrgUsers";
+import OrgTeams from "@/pages/OrgTeams";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
 
-const ProtectedPage = ({ children }: { children: React.ReactNode }) => (
-  <ProtectedRoute>
-    <DashboardLayout>{children}</DashboardLayout>
-  </ProtectedRoute>
+const P = ({ children }: { children: React.ReactNode }) => (
+  <ProtectedRoute><DashboardLayout>{children}</DashboardLayout></ProtectedRoute>
 );
 
 const App = () => (
@@ -33,15 +34,18 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
-          <Route path="/" element={<ProtectedPage><Dashboard /></ProtectedPage>} />
-          <Route path="/pipeline" element={<ProtectedPage><PipelineBoard /></ProtectedPage>} />
-          <Route path="/pipeline/opportunities/:opportunityId" element={<ProtectedPage><OpportunityDetail /></ProtectedPage>} />
-          <Route path="/automation" element={<ProtectedPage><AutomationRules /></ProtectedPage>} />
-          <Route path="/dashboard/sla" element={<ProtectedPage><SlaBreaches /></ProtectedPage>} />
-          <Route path="/dashboard/reports" element={<ProtectedPage><Reports /></ProtectedPage>} />
-          <Route path="/merchants" element={<ProtectedPage><MerchantList /></ProtectedPage>} />
-          <Route path="/merchants/:merchantId/conversations" element={<ProtectedPage><MerchantConversations /></ProtectedPage>} />
-          <Route path="/merchants/:merchantId/conversations/:conversationId" element={<ProtectedPage><ConversationDetail /></ProtectedPage>} />
+          <Route path="/" element={<P><Dashboard /></P>} />
+          <Route path="/pipeline" element={<P><PipelineBoard /></P>} />
+          <Route path="/pipeline/opportunities/:opportunityId" element={<P><OpportunityDetail /></P>} />
+          <Route path="/automation" element={<P><AutomationRules /></P>} />
+          <Route path="/dashboard/sla" element={<P><SlaBreaches /></P>} />
+          <Route path="/dashboard/reports" element={<P><Reports /></P>} />
+          <Route path="/org/settings" element={<P><OrgSettings /></P>} />
+          <Route path="/org/users" element={<P><OrgUsers /></P>} />
+          <Route path="/org/teams" element={<P><OrgTeams /></P>} />
+          <Route path="/merchants" element={<P><MerchantList /></P>} />
+          <Route path="/merchants/:merchantId/conversations" element={<P><MerchantConversations /></P>} />
+          <Route path="/merchants/:merchantId/conversations/:conversationId" element={<P><ConversationDetail /></P>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
