@@ -102,7 +102,7 @@ export default function LeadDetail() {
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Created</span>
-              <span>{format(new Date(lead.created_at), "MMM d, yyyy HH:mm")}</span>
+              <span>{lead.created_at && !isNaN(new Date(lead.created_at).getTime()) ? format(new Date(lead.created_at), "MMM d, yyyy HH:mm") : "—"}</span>
             </div>
           </CardContent>
         </Card>
