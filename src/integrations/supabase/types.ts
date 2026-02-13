@@ -305,6 +305,10 @@ export type Database = {
       }
       conversations: {
         Row: {
+          ai_enabled: boolean
+          ai_last_error: string | null
+          ai_last_generated_at: string | null
+          ai_status: string
           contact_id: string | null
           created_at: string
           external_contact: string
@@ -319,6 +323,10 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          ai_enabled?: boolean
+          ai_last_error?: string | null
+          ai_last_generated_at?: string | null
+          ai_status?: string
           contact_id?: string | null
           created_at?: string
           external_contact: string
@@ -333,6 +341,10 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          ai_enabled?: boolean
+          ai_last_error?: string | null
+          ai_last_generated_at?: string | null
+          ai_status?: string
           contact_id?: string | null
           created_at?: string
           external_contact?: string
@@ -628,7 +640,9 @@ export type Database = {
           conversation_id: string
           created_at: string
           id: string
+          metadata: Json
           org_id: string
+          reply_to_message_id: string | null
           sender: string
         }
         Insert: {
@@ -636,7 +650,9 @@ export type Database = {
           conversation_id: string
           created_at?: string
           id?: string
+          metadata?: Json
           org_id: string
+          reply_to_message_id?: string | null
           sender: string
         }
         Update: {
@@ -644,7 +660,9 @@ export type Database = {
           conversation_id?: string
           created_at?: string
           id?: string
+          metadata?: Json
           org_id?: string
+          reply_to_message_id?: string | null
           sender?: string
         }
         Relationships: [
@@ -660,6 +678,13 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_reply_to_message_id_fkey"
+            columns: ["reply_to_message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
             referencedColumns: ["id"]
           },
         ]

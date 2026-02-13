@@ -17,6 +17,10 @@ export interface Conversation {
   contact_id: string | null;
   lead_id: string | null;
   opportunity_id: string | null;
+  ai_enabled: boolean;
+  ai_status: 'idle' | 'queued' | 'generating' | 'ready' | 'failed';
+  ai_last_error: string | null;
+  ai_last_generated_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -27,6 +31,8 @@ export interface Message {
   org_id: string;
   sender: 'user' | 'ai' | 'human';
   content: string;
+  metadata: Record<string, unknown>;
+  reply_to_message_id: string | null;
   created_at: string;
 }
 
