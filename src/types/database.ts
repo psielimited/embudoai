@@ -17,7 +17,7 @@ export interface Conversation {
   external_contact: string;
   language: string;
   intent: string | null;
-  status: 'open' | 'closed' | 'needs_handoff';
+  status: 'open' | 'waiting_on_customer' | 'needs_handoff' | 'resolved' | 'closed';
   contact_id: string | null;
   lead_id: string | null;
   opportunity_id: string | null;
@@ -25,6 +25,15 @@ export interface Conversation {
   ai_status: 'idle' | 'queued' | 'generating' | 'ready' | 'failed';
   ai_last_error: string | null;
   ai_last_generated_at: string | null;
+  ai_paused: boolean;
+  owner_user_id: string | null;
+  owner_team_id: string | null;
+  priority: 'low' | 'normal' | 'high' | 'urgent';
+  outcome: string | null;
+  last_inbound_at: string | null;
+  last_outbound_at: string | null;
+  last_human_outbound_at: string | null;
+  last_ai_outbound_at: string | null;
   created_at: string;
   updated_at: string;
 }

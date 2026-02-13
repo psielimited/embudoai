@@ -100,6 +100,81 @@ Deno.serve(async (req) => {
         }
       }
 
+      // 4. CONVERSATION SLA
+      // Load SLA policies for this org
+      const { data: slaPolicies } = await client.from("conversation_sla_policies")
+        .select("merchant_id, first_response_minutes, next_response_minutes")
+        .eq("org_id", orgId).eq("enabled", true);
+
+      if (slaPolicies && slaPolicies.length > 0) {
+        const policyMap = new Map(slaPolicies.map(p => [p.merchant_id, p]));
+
+        const { data: openConvs } = await client.from("conversations")
+          .select("id, merchant_id, owner_user_id, external_contact, last_inbound_at, last_outbound_at, status")
+          .eq("org_id", orgId)
+          .in("status", ["open", "needs_handoff"]);
+
+        if (openConvs) {
+          for (const conv of openConvs) {
+            const policy = policyMap.get(conv.merchant_id);
+            if (!policy || !conv.last_inbound_at) continue;
+
+            const inboundTime = new Date(conv.last_inbound_at).getTime();
+            const outboundTime = conv.last_outbound_at ? new Date(conv.last_outbound_at).getTime() : 0;
+            const now = Date.now();
+
+            // First response: no outbound ever
+            if (outboundTime === 0 && (now - inboundTime) > policy.first_response_minutes * 60000) {
+              const created = await upsertSla(client, conv.id, "CONV_FIRST_RESPONSE", "breach",
+                { minutes: policy.first_response_minutes, last_inbound_at: conv.last_inbound_at }, orgId, "conversation");
+              if (created) {
+                results.no_activity++;
+                if (conv.owner_user_id) {
+                  await notify(client, conv.owner_user_id, "sla_breach",
+                    `First response SLA breached`, `No reply in ${policy.first_response_minutes}min for ${conv.external_contact}`,
+                    "conversation", conv.id, orgId);
+                  results.notifications++;
+                }
+              }
+            }
+            // Next response: outbound is older than inbound
+            else if (outboundTime < inboundTime && (now - inboundTime) > policy.next_response_minutes * 60000) {
+              const created = await upsertSla(client, conv.id, "CONV_NEXT_RESPONSE", "warn",
+                { minutes: policy.next_response_minutes, last_inbound_at: conv.last_inbound_at, last_outbound_at: conv.last_outbound_at }, orgId, "conversation");
+              if (created) {
+                results.no_activity++;
+                if (conv.owner_user_id) {
+                  await notify(client, conv.owner_user_id, "sla_breach",
+                    `Response SLA breached`, `No reply in ${policy.next_response_minutes}min for ${conv.external_contact}`,
+                    "conversation", conv.id, orgId);
+                  results.notifications++;
+                }
+              }
+            }
+          }
+        }
+
+        // Auto-resolve conversation SLAs when responded
+        const { data: openConvSlas } = await client.from("sla_events")
+          .select("id, entity_id, sla_type, details")
+          .eq("org_id", orgId)
+          .eq("entity_type", "conversation")
+          .in("sla_type", ["CONV_FIRST_RESPONSE", "CONV_NEXT_RESPONSE"])
+          .is("resolved_at", null);
+
+        if (openConvSlas) {
+          for (const sla of openConvSlas) {
+            const { data: convCheck } = await client.from("conversations")
+              .select("last_inbound_at, last_outbound_at")
+              .eq("id", sla.entity_id).single();
+            if (convCheck?.last_outbound_at && convCheck.last_inbound_at &&
+                new Date(convCheck.last_outbound_at) >= new Date(convCheck.last_inbound_at)) {
+              await client.from("sla_events").update({ resolved_at: new Date().toISOString() }).eq("id", sla.id);
+            }
+          }
+        }
+      }
+
       // Auto-resolve completed task SLAs
       const { data: openSlas } = await client.from("sla_events").select("id, details")
         .eq("sla_type", "TASK_OVERDUE").eq("org_id", orgId).is("resolved_at", null);
@@ -125,12 +200,12 @@ Deno.serve(async (req) => {
   }
 });
 
-async function upsertSla(client: any, entityId: string, slaType: string, severity: string, details: any, orgId: string) {
+async function upsertSla(client: any, entityId: string, slaType: string, severity: string, details: any, orgId: string, entityType = "opportunity") {
   const { data: existing } = await client.from("sla_events").select("id")
     .eq("entity_id", entityId).eq("sla_type", slaType).eq("org_id", orgId).is("resolved_at", null).limit(1);
   if (existing && existing.length > 0) return false;
   await client.from("sla_events").insert({
-    entity_type: "opportunity", entity_id: entityId, sla_type: slaType, severity, details, org_id: orgId,
+    entity_type: entityType, entity_id: entityId, sla_type: slaType, severity, details, org_id: orgId,
   });
   return true;
 }

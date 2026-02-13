@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
-type StatusType = 'active' | 'inactive' | 'open' | 'closed' | 'needs_handoff';
+type StatusType = 'active' | 'inactive' | 'open' | 'closed' | 'needs_handoff' | 'waiting_on_customer' | 'resolved';
 
 interface StatusBadgeProps {
   status: StatusType;
@@ -29,10 +29,18 @@ const statusConfig: Record<StatusType, { label: string; className: string }> = {
     label: 'Needs Handoff',
     className: 'bg-status-handoff/10 text-status-handoff border-status-handoff/20',
   },
+  waiting_on_customer: {
+    label: 'Waiting on Customer',
+    className: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
+  },
+  resolved: {
+    label: 'Resolved',
+    className: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20',
+  },
 };
 
 export function StatusBadge({ status, className }: StatusBadgeProps) {
-  const config = statusConfig[status];
+  const config = statusConfig[status] ?? statusConfig.open;
   
   return (
     <Badge

@@ -94,8 +94,10 @@ export default function MerchantConversations() {
             <SelectContent>
               <SelectItem value="all">All statuses</SelectItem>
               <SelectItem value="open">Open</SelectItem>
-              <SelectItem value="closed">Closed</SelectItem>
+              <SelectItem value="waiting_on_customer">Waiting on Customer</SelectItem>
               <SelectItem value="needs_handoff">Needs Handoff</SelectItem>
+              <SelectItem value="resolved">Resolved</SelectItem>
+              <SelectItem value="closed">Closed</SelectItem>
             </SelectContent>
           </Select>
         }

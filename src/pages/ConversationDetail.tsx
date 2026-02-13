@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
 import { EmptyState } from "@/components/EmptyState";
 import { MessageBubble } from "@/components/MessageBubble";
+import { ConversationWorkflow } from "@/components/ConversationWorkflow";
 import { useMerchant } from "@/hooks/useMerchants";
 import { useConversation } from "@/hooks/useConversations";
 import { useMessages } from "@/hooks/useMessages";
@@ -257,6 +258,13 @@ export default function ConversationDetail() {
                   </Badge>
                 </Link>
               )}
+            </div>
+          )}
+
+          {/* Workflow controls */}
+          {conversation && (
+            <div className="mt-4">
+              <ConversationWorkflow conversation={conversation} />
             </div>
           )}
         </CardHeader>

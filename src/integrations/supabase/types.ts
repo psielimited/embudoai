@@ -360,11 +360,105 @@ export type Database = {
           },
         ]
       }
+      conversation_events: {
+        Row: {
+          actor_user_id: string | null
+          conversation_id: string
+          created_at: string
+          details: Json
+          event_type: string
+          id: string
+          org_id: string
+        }
+        Insert: {
+          actor_user_id?: string | null
+          conversation_id: string
+          created_at?: string
+          details?: Json
+          event_type: string
+          id?: string
+          org_id: string
+        }
+        Update: {
+          actor_user_id?: string | null
+          conversation_id?: string
+          created_at?: string
+          details?: Json
+          event_type?: string
+          id?: string
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_events_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_events_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conversation_sla_policies: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          first_response_minutes: number
+          id: string
+          merchant_id: string
+          next_response_minutes: number
+          org_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          first_response_minutes?: number
+          id?: string
+          merchant_id: string
+          next_response_minutes?: number
+          org_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          first_response_minutes?: number
+          id?: string
+          merchant_id?: string
+          next_response_minutes?: number
+          org_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_sla_policies_merchant_id_fkey"
+            columns: ["merchant_id"]
+            isOneToOne: false
+            referencedRelation: "merchants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_sla_policies_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversations: {
         Row: {
           ai_enabled: boolean
           ai_last_error: string | null
           ai_last_generated_at: string | null
+          ai_paused: boolean
           ai_status: string
           contact_id: string | null
           created_at: string
@@ -372,10 +466,18 @@ export type Database = {
           id: string
           intent: string | null
           language: string
+          last_ai_outbound_at: string | null
+          last_human_outbound_at: string | null
+          last_inbound_at: string | null
+          last_outbound_at: string | null
           lead_id: string | null
           merchant_id: string
           opportunity_id: string | null
           org_id: string
+          outcome: string | null
+          owner_team_id: string | null
+          owner_user_id: string | null
+          priority: string
           status: string
           updated_at: string
         }
@@ -383,6 +485,7 @@ export type Database = {
           ai_enabled?: boolean
           ai_last_error?: string | null
           ai_last_generated_at?: string | null
+          ai_paused?: boolean
           ai_status?: string
           contact_id?: string | null
           created_at?: string
@@ -390,10 +493,18 @@ export type Database = {
           id?: string
           intent?: string | null
           language?: string
+          last_ai_outbound_at?: string | null
+          last_human_outbound_at?: string | null
+          last_inbound_at?: string | null
+          last_outbound_at?: string | null
           lead_id?: string | null
           merchant_id: string
           opportunity_id?: string | null
           org_id: string
+          outcome?: string | null
+          owner_team_id?: string | null
+          owner_user_id?: string | null
+          priority?: string
           status?: string
           updated_at?: string
         }
@@ -401,6 +512,7 @@ export type Database = {
           ai_enabled?: boolean
           ai_last_error?: string | null
           ai_last_generated_at?: string | null
+          ai_paused?: boolean
           ai_status?: string
           contact_id?: string | null
           created_at?: string
@@ -408,10 +520,18 @@ export type Database = {
           id?: string
           intent?: string | null
           language?: string
+          last_ai_outbound_at?: string | null
+          last_human_outbound_at?: string | null
+          last_inbound_at?: string | null
+          last_outbound_at?: string | null
           lead_id?: string | null
           merchant_id?: string
           opportunity_id?: string | null
           org_id?: string
+          outcome?: string | null
+          owner_team_id?: string | null
+          owner_user_id?: string | null
+          priority?: string
           status?: string
           updated_at?: string
         }
