@@ -256,6 +256,7 @@ export type Database = {
           intent: string | null
           language: string
           merchant_id: string
+          org_id: string
           status: string
           updated_at: string
         }
@@ -266,6 +267,7 @@ export type Database = {
           intent?: string | null
           language?: string
           merchant_id: string
+          org_id: string
           status?: string
           updated_at?: string
         }
@@ -276,6 +278,7 @@ export type Database = {
           intent?: string | null
           language?: string
           merchant_id?: string
+          org_id?: string
           status?: string
           updated_at?: string
         }
@@ -285,6 +288,13 @@ export type Database = {
             columns: ["merchant_id"]
             isOneToOne: false
             referencedRelation: "merchants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
             referencedColumns: ["id"]
           },
         ]
@@ -500,21 +510,32 @@ export type Database = {
           created_at: string
           id: string
           name: string
+          org_id: string
           status: string
         }
         Insert: {
           created_at?: string
           id?: string
           name: string
+          org_id: string
           status?: string
         }
         Update: {
           created_at?: string
           id?: string
           name?: string
+          org_id?: string
           status?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "merchants_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       messages: {
         Row: {
@@ -522,6 +543,7 @@ export type Database = {
           conversation_id: string
           created_at: string
           id: string
+          org_id: string
           sender: string
         }
         Insert: {
@@ -529,6 +551,7 @@ export type Database = {
           conversation_id: string
           created_at?: string
           id?: string
+          org_id: string
           sender: string
         }
         Update: {
@@ -536,6 +559,7 @@ export type Database = {
           conversation_id?: string
           created_at?: string
           id?: string
+          org_id?: string
           sender?: string
         }
         Relationships: [
@@ -544,6 +568,13 @@ export type Database = {
             columns: ["conversation_id"]
             isOneToOne: false
             referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
             referencedColumns: ["id"]
           },
         ]

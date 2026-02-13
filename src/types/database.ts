@@ -2,12 +2,14 @@ export interface Merchant {
   id: string;
   name: string;
   status: 'active' | 'inactive';
+  org_id: string;
   created_at: string;
 }
 
 export interface Conversation {
   id: string;
   merchant_id: string;
+  org_id: string;
   external_contact: string;
   language: string;
   intent: string | null;
@@ -19,6 +21,7 @@ export interface Conversation {
 export interface Message {
   id: string;
   conversation_id: string;
+  org_id: string;
   sender: 'user' | 'ai' | 'human';
   content: string;
   created_at: string;
