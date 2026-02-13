@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
     // 1. Load conversation
     const { data: conv, error: convErr } = await supabase
       .from("conversations")
-      .select("id, org_id, merchant_id, external_contact, ai_enabled, ai_status")
+      .select("id, org_id, merchant_id, external_contact, ai_enabled, ai_status, ai_paused, status")
       .eq("id", body.conversation_id)
       .single();
 
@@ -61,7 +61,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (!conv.ai_enabled) {
+    // AI governance: skip if disabled, paused, or needs_handoff
+    if (!conv.ai_enabled || conv.ai_paused || conv.status === "needs_handoff") {
+      console.log(`AI skipped for conversation ${conv.id}: enabled=${conv.ai_enabled}, paused=${conv.ai_paused}, status=${conv.status}`);
       return new Response(null, { status: 204, headers: corsHeaders });
     }
 

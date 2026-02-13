@@ -38,3 +38,6 @@ verify_jwt = false
 
 [functions.send-whatsapp-message]
 verify_jwt = false
+
+[functions.assign-conversation]
+verify_jwt = false

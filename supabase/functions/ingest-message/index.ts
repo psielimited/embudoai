@@ -225,6 +225,7 @@ Deno.serve(async (req) => {
       sender,
       content: body.content,
       org_id: orgId,
+      direction: sender === "user" ? "inbound" : "outbound",
     };
     if (body.channel) messageInsert.channel = body.channel;
     if (body.provider) messageInsert.provider = body.provider;
@@ -244,6 +245,25 @@ Deno.serve(async (req) => {
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // 5b. Update conversation timestamps
+    const tsUpdates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if (sender === "user") {
+      tsUpdates.last_inbound_at = new Date().toISOString();
+    } else {
+      tsUpdates.last_outbound_at = new Date().toISOString();
+      if (sender === "human") tsUpdates.last_human_outbound_at = new Date().toISOString();
+      if (sender === "ai") tsUpdates.last_ai_outbound_at = new Date().toISOString();
+    }
+    await supabase.from("conversations").update(tsUpdates).eq("id", conversationId);
+
+    // 5c. Log conversation event
+    await supabase.from("conversation_events").insert({
+      org_id: orgId,
+      conversation_id: conversationId,
+      event_type: sender === "user" ? "message_received" : "draft_generated",
+      details: { message_id: newMessage.id, sender },
+    });
 
     // 6. Trigger AI draft generation if sender is 'user'
     let aiQueued = false;
