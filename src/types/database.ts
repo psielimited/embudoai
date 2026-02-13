@@ -14,6 +14,9 @@ export interface Conversation {
   language: string;
   intent: string | null;
   status: 'open' | 'closed' | 'needs_handoff';
+  contact_id: string | null;
+  lead_id: string | null;
+  opportunity_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -25,4 +28,15 @@ export interface Message {
   sender: 'user' | 'ai' | 'human';
   content: string;
   created_at: string;
+}
+
+export interface ContactChannel {
+  id: string;
+  org_id: string;
+  channel: string;
+  external_contact: string;
+  contact_id: string | null;
+  lead_id: string | null;
+  created_at: string;
+  updated_at: string;
 }

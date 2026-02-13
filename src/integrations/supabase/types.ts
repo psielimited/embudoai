@@ -198,6 +198,61 @@ export type Database = {
           },
         ]
       }
+      contact_channels: {
+        Row: {
+          channel: string
+          contact_id: string | null
+          created_at: string
+          external_contact: string
+          id: string
+          lead_id: string | null
+          org_id: string
+          updated_at: string
+        }
+        Insert: {
+          channel: string
+          contact_id?: string | null
+          created_at?: string
+          external_contact: string
+          id?: string
+          lead_id?: string | null
+          org_id: string
+          updated_at?: string
+        }
+        Update: {
+          channel?: string
+          contact_id?: string | null
+          created_at?: string
+          external_contact?: string
+          id?: string
+          lead_id?: string | null
+          org_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_channels_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_channels_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_channels_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contacts: {
         Row: {
           addresses: Json
@@ -250,44 +305,74 @@ export type Database = {
       }
       conversations: {
         Row: {
+          contact_id: string | null
           created_at: string
           external_contact: string
           id: string
           intent: string | null
           language: string
+          lead_id: string | null
           merchant_id: string
+          opportunity_id: string | null
           org_id: string
           status: string
           updated_at: string
         }
         Insert: {
+          contact_id?: string | null
           created_at?: string
           external_contact: string
           id?: string
           intent?: string | null
           language?: string
+          lead_id?: string | null
           merchant_id: string
+          opportunity_id?: string | null
           org_id: string
           status?: string
           updated_at?: string
         }
         Update: {
+          contact_id?: string | null
           created_at?: string
           external_contact?: string
           id?: string
           intent?: string | null
           language?: string
+          lead_id?: string | null
           merchant_id?: string
+          opportunity_id?: string | null
           org_id?: string
           status?: string
           updated_at?: string
         }
         Relationships: [
           {
+            foreignKeyName: "conversations_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "conversations_merchant_id_fkey"
             columns: ["merchant_id"]
             isOneToOne: false
             referencedRelation: "merchants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "opportunities"
             referencedColumns: ["id"]
           },
           {
