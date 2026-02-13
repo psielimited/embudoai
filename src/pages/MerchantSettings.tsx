@@ -20,7 +20,9 @@ export default function MerchantSettings() {
   const [phoneNumberId, setPhoneNumberId] = useState("");
   const [verifyToken, setVerifyToken] = useState("");
   const [appSecret, setAppSecret] = useState("");
+  const [accessToken, setAccessToken] = useState("");
   const [showSecret, setShowSecret] = useState(false);
+  const [showToken, setShowToken] = useState(false);
   const [saving, setSaving] = useState(false);
   const [initialized, setInitialized] = useState(false);
 
@@ -29,6 +31,7 @@ export default function MerchantSettings() {
     setPhoneNumberId(merchant.whatsapp_phone_number_id ?? "");
     setVerifyToken(merchant.whatsapp_verify_token ?? "");
     setAppSecret(merchant.whatsapp_app_secret ?? "");
+    setAccessToken(merchant.whatsapp_access_token ?? "");
     setInitialized(true);
   }
 
@@ -42,6 +45,7 @@ export default function MerchantSettings() {
           whatsapp_phone_number_id: phoneNumberId || null,
           whatsapp_verify_token: verifyToken || null,
           whatsapp_app_secret: appSecret || null,
+          whatsapp_access_token: accessToken || null,
         })
         .eq("id", merchantId);
 
@@ -155,6 +159,29 @@ export default function MerchantSettings() {
               </div>
               <p className="text-xs text-muted-foreground">
                 Enables X-Hub-Signature-256 verification. Found in Meta App → Settings → Basic → App Secret.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="accessToken">Access Token (required for sending)</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="accessToken"
+                  type={showToken ? "text" : "password"}
+                  value={accessToken}
+                  onChange={(e) => setAccessToken(e.target.value)}
+                  placeholder="Permanent or temporary access token"
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowToken(!showToken)}
+                >
+                  {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Required to send outbound messages. Found in Meta App → WhatsApp → API Setup → Temporary/Permanent Token.
               </p>
             </div>
 

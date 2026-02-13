@@ -1,10 +1,14 @@
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { Bot, User, Headphones, Check, CheckCheck, AlertCircle, Clock } from "lucide-react";
+import { Bot, User, Headphones, Check, CheckCheck, AlertCircle, Clock, Send, Loader2, RotateCcw } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Message } from "@/types/database";
 
 interface MessageBubbleProps {
   message: Message;
+  onSend?: (messageId: string) => void;
+  isSending?: boolean;
 }
 
 const senderConfig = {
@@ -39,12 +43,17 @@ const deliveryIcons: Record<string, { icon: typeof Check; className: string; lab
   unknown: { icon: Clock, className: "text-muted-foreground/50", label: "Pending" },
 };
 
-export function MessageBubble({ message }: MessageBubbleProps) {
+export function MessageBubble({ message, onSend, isSending }: MessageBubbleProps) {
   const config = senderConfig[message.sender];
   const Icon = config.icon;
   const isRight = config.align === 'right';
+  const isOutbound = message.direction === 'outbound';
   const showDelivery = isRight && message.delivery_status && message.delivery_status !== 'unknown';
   const delivery = deliveryIcons[message.delivery_status ?? 'unknown'];
+
+  // Show send button for outbound drafts that haven't been sent
+  const canSend = isOutbound && ['unsent', 'failed'].includes(message.send_status) && onSend;
+  const isSendingThis = isSending;
 
   return (
     <div className={cn("flex gap-3 max-w-[80%]", isRight && "ml-auto flex-row-reverse")}>
@@ -57,6 +66,9 @@ export function MessageBubble({ message }: MessageBubbleProps) {
       <div className={cn("flex flex-col gap-1", isRight && "items-end")}>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <span className="font-medium">{config.label}</span>
+          {isOutbound && message.send_status === 'unsent' && (
+            <span className="text-xs font-medium text-amber-500">Draft</span>
+          )}
           <span>•</span>
           <time>
             {message.created_at && !isNaN(new Date(message.created_at).getTime())
@@ -72,7 +84,51 @@ export function MessageBubble({ message }: MessageBubbleProps) {
         )}>
           <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
         </div>
-        {showDelivery && delivery && (
+
+        {/* Send/Retry controls for outbound drafts */}
+        {canSend && (
+          <div className="flex items-center gap-2 mt-1">
+            <Button
+              size="sm"
+              variant={message.send_status === 'failed' ? 'destructive' : 'default'}
+              className="h-7 text-xs gap-1.5"
+              onClick={() => onSend(message.id)}
+              disabled={isSendingThis}
+            >
+              {isSendingThis ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : message.send_status === 'failed' ? (
+                <RotateCcw className="h-3 w-3" />
+              ) : (
+                <Send className="h-3 w-3" />
+              )}
+              {message.send_status === 'failed' ? 'Retry' : 'Send via WhatsApp'}
+            </Button>
+            {message.send_status === 'failed' && message.send_error && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="text-xs text-destructive cursor-help truncate max-w-[200px]">
+                    {message.send_error.slice(0, 60)}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-xs">
+                  <p className="text-xs">{message.send_error}</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+          </div>
+        )}
+
+        {/* Sending state */}
+        {isOutbound && message.send_status === 'sending' && (
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            <span>Sending…</span>
+          </div>
+        )}
+
+        {/* Delivery status for sent messages */}
+        {showDelivery && delivery && message.send_status === 'sent' && (
           <div className="flex items-center gap-1 text-xs">
             <delivery.icon className={cn("h-3 w-3", delivery.className)} />
             <span className={delivery.className}>{delivery.label}</span>

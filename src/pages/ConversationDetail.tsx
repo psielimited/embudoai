@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 
 function useLinkedLead(leadId: string | null | undefined) {
@@ -73,6 +73,7 @@ export default function ConversationDetail() {
 
   const queryClient = useQueryClient();
   const [regenerating, setRegenerating] = useState(false);
+  const [sendingMessageId, setSendingMessageId] = useState<string | null>(null);
 
   const { data: merchant } = useMerchant(merchantId!);
   const { data: conversation, isLoading: convLoading } = useConversation(conversationId!);
@@ -145,6 +146,34 @@ export default function ConversationDetail() {
       setRegenerating(false);
     }
   };
+
+  const handleSendMessage = useCallback(async (messageId: string) => {
+    setSendingMessageId(messageId);
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-whatsapp-message`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({ message_id: messageId }),
+        }
+      );
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        toast.success("Message sent via WhatsApp");
+      } else {
+        toast.error(data.error || "Failed to send message");
+      }
+      queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
+    } catch {
+      toast.error("Network error sending message");
+    } finally {
+      setSendingMessageId(null);
+    }
+  }, [conversationId, queryClient]);
 
   if (!conversation && !isLoading) {
     return (
@@ -256,7 +285,12 @@ export default function ConversationDetail() {
                   </div>
                   <div className="space-y-4">
                     {dateMessages.map((message) => (
-                      <MessageBubble key={message.id} message={message} />
+                      <MessageBubble
+                        key={message.id}
+                        message={message}
+                        onSend={handleSendMessage}
+                        isSending={sendingMessageId === message.id}
+                      />
                     ))}
                   </div>
                 </div>
