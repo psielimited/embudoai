@@ -1,5 +1,5 @@
 import { useParams, Link } from "react-router-dom";
-import { MessageSquare, User, UserCheck, Briefcase } from "lucide-react";
+import { MessageSquare, User, UserCheck, Briefcase, RefreshCw, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -11,8 +11,11 @@ import { useMessages } from "@/hooks/useMessages";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { useQuery } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useState, useEffect } from "react";
+import { toast } from "sonner";
 
 function useLinkedLead(leadId: string | null | undefined) {
   return useQuery({
@@ -68,6 +71,9 @@ export default function ConversationDetail() {
     conversationId: string;
   }>();
 
+  const queryClient = useQueryClient();
+  const [regenerating, setRegenerating] = useState(false);
+
   const { data: merchant } = useMerchant(merchantId!);
   const { data: conversation, isLoading: convLoading } = useConversation(conversationId!);
   const { data: messages = [], isLoading: messagesLoading } = useMessages(conversationId!);
@@ -77,6 +83,68 @@ export default function ConversationDetail() {
   const { data: linkedOpp } = useLinkedOpportunity(conversation?.opportunity_id);
 
   const isLoading = convLoading || messagesLoading;
+  const aiStatus = conversation?.ai_status;
+  const isAiWorking = aiStatus === "queued" || aiStatus === "generating";
+
+  // Realtime subscription for new messages
+  useEffect(() => {
+    if (!conversationId) return;
+    const channel = supabase
+      .channel(`messages-${conversationId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+          filter: `conversation_id=eq.${conversationId}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
+          queryClient.invalidateQueries({ queryKey: ["conversation", conversationId] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [conversationId, queryClient]);
+
+  const handleRegenerate = async () => {
+    if (!conversationId || !messages.length) return;
+    setRegenerating(true);
+    // Find the latest user message
+    const lastUserMsg = [...messages].reverse().find((m) => m.sender === "user");
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-ai-reply`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({
+            conversation_id: conversationId,
+            trigger_message_id: lastUserMsg?.id ?? null,
+          }),
+        }
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || "Failed to regenerate AI draft");
+      } else {
+        toast.success("AI draft regenerated");
+        queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
+        queryClient.invalidateQueries({ queryKey: ["conversation", conversationId] });
+      }
+    } catch (e) {
+      toast.error("Network error regenerating draft");
+    } finally {
+      setRegenerating(false);
+    }
+  };
 
   if (!conversation && !isLoading) {
     return (
@@ -195,6 +263,36 @@ export default function ConversationDetail() {
               ))}
             </div>
           )}
+
+          {/* AI status indicator + regenerate */}
+          <div className="flex items-center gap-3 mt-4 pt-4 border-t border-border">
+            {isAiWorking && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>AI drafting…</span>
+              </div>
+            )}
+            {aiStatus === "failed" && conversation?.ai_last_error && (
+              <span className="text-sm text-destructive">
+                AI error: {conversation.ai_last_error.slice(0, 80)}
+              </span>
+            )}
+            <div className="ml-auto">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRegenerate}
+                disabled={regenerating || isAiWorking}
+              >
+                {regenerating ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                ) : (
+                  <RefreshCw className="h-4 w-4 mr-1" />
+                )}
+                Regenerate draft
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </>

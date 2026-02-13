@@ -235,12 +235,42 @@ Deno.serve(async (req) => {
       );
     }
 
+    // 6. Trigger AI draft generation if sender is 'user'
+    let aiQueued = false;
+    if (sender === "user") {
+      try {
+        await supabase
+          .from("conversations")
+          .update({ ai_status: "queued" })
+          .eq("id", conversationId);
+
+        // Fire-and-forget call to generate-ai-reply
+        const fnUrl = `${supabaseUrl}/functions/v1/generate-ai-reply`;
+        fetch(fnUrl, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${supabaseServiceKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            conversation_id: conversationId,
+            trigger_message_id: newMessage.id,
+          }),
+        }).catch((e) => console.error("generate-ai-reply fire-and-forget error:", e));
+
+        aiQueued = true;
+      } catch (e) {
+        console.error("Failed to queue AI generation:", e);
+      }
+    }
+
     return new Response(
       JSON.stringify({
         conversation_id: conversationId,
         message_id: newMessage.id,
         lead_id: leadId,
         contact_id: contactId,
+        ai_queued: aiQueued,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
