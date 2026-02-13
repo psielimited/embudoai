@@ -321,7 +321,14 @@ Deno.serve(async (req) => {
         updates.read_at = ts;
         if (!updates.delivered_at) updates.delivered_at = ts;
       }
-      if (deliveryStatus === "failed") updates.failed_at = ts;
+      if (deliveryStatus === "failed") {
+        updates.failed_at = ts;
+        updates.send_status = "failed";
+        const errors = status.errors as Array<Record<string, unknown>> | undefined;
+        if (errors?.[0]) {
+          updates.send_error = JSON.stringify(errors[0]).slice(0, 500);
+        }
+      }
 
       const { error: msgErr } = await supabase
         .from("messages")

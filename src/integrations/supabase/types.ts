@@ -666,6 +666,7 @@ export type Database = {
           name: string
           org_id: string
           status: string
+          whatsapp_access_token: string | null
           whatsapp_app_secret: string | null
           whatsapp_phone_number_id: string | null
           whatsapp_verify_token: string | null
@@ -676,6 +677,7 @@ export type Database = {
           name: string
           org_id: string
           status?: string
+          whatsapp_access_token?: string | null
           whatsapp_app_secret?: string | null
           whatsapp_phone_number_id?: string | null
           whatsapp_verify_token?: string | null
@@ -686,6 +688,7 @@ export type Database = {
           name?: string
           org_id?: string
           status?: string
+          whatsapp_access_token?: string | null
           whatsapp_app_secret?: string | null
           whatsapp_phone_number_id?: string | null
           whatsapp_verify_token?: string | null
@@ -708,6 +711,7 @@ export type Database = {
           created_at: string
           delivered_at: string | null
           delivery_status: string
+          direction: string
           failed_at: string | null
           id: string
           metadata: Json
@@ -716,7 +720,10 @@ export type Database = {
           provider_message_id: string | null
           read_at: string | null
           reply_to_message_id: string | null
+          send_error: string | null
+          send_status: string
           sender: string
+          sent_at: string | null
         }
         Insert: {
           channel?: string
@@ -725,6 +732,7 @@ export type Database = {
           created_at?: string
           delivered_at?: string | null
           delivery_status?: string
+          direction?: string
           failed_at?: string | null
           id?: string
           metadata?: Json
@@ -733,7 +741,10 @@ export type Database = {
           provider_message_id?: string | null
           read_at?: string | null
           reply_to_message_id?: string | null
+          send_error?: string | null
+          send_status?: string
           sender: string
+          sent_at?: string | null
         }
         Update: {
           channel?: string
@@ -742,6 +753,7 @@ export type Database = {
           created_at?: string
           delivered_at?: string | null
           delivery_status?: string
+          direction?: string
           failed_at?: string | null
           id?: string
           metadata?: Json
@@ -750,7 +762,10 @@ export type Database = {
           provider_message_id?: string | null
           read_at?: string | null
           reply_to_message_id?: string | null
+          send_error?: string | null
+          send_status?: string
           sender?: string
+          sent_at?: string | null
         }
         Relationships: [
           {
@@ -936,6 +951,80 @@ export type Database = {
           name?: string
         }
         Relationships: []
+      }
+      outbound_jobs: {
+        Row: {
+          attempts: number
+          channel: string
+          conversation_id: string
+          created_at: string
+          id: string
+          last_error: string | null
+          merchant_id: string
+          message_id: string
+          org_id: string
+          provider: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          channel: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          merchant_id: string
+          message_id: string
+          org_id: string
+          provider: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          channel?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          merchant_id?: string
+          message_id?: string
+          org_id?: string
+          provider?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outbound_jobs_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outbound_jobs_merchant_id_fkey"
+            columns: ["merchant_id"]
+            isOneToOne: false
+            referencedRelation: "merchants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outbound_jobs_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outbound_jobs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       pipelines: {
         Row: {

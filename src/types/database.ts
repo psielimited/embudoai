@@ -7,6 +7,7 @@ export interface Merchant {
   whatsapp_phone_number_id: string | null;
   whatsapp_verify_token: string | null;
   whatsapp_app_secret: string | null;
+  whatsapp_access_token: string | null;
 }
 
 export interface Conversation {
@@ -43,6 +44,10 @@ export interface Message {
   delivered_at: string | null;
   read_at: string | null;
   failed_at: string | null;
+  direction: 'inbound' | 'outbound';
+  send_status: 'unsent' | 'queued' | 'sending' | 'sent' | 'failed';
+  send_error: string | null;
+  sent_at: string | null;
   created_at: string;
 }
 
