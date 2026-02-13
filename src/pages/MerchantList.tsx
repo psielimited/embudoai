@@ -1,11 +1,12 @@
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
-import { Store } from "lucide-react";
+import { Store, Settings } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { DataTable } from "@/components/DataTable";
 import { StatusBadge } from "@/components/StatusBadge";
 import { EmptyState } from "@/components/EmptyState";
 import { useMerchants } from "@/hooks/useMerchants";
+import { Button } from "@/components/ui/button";
 import type { Merchant } from "@/types/database";
 
 export default function MerchantList() {
@@ -30,8 +31,26 @@ export default function MerchantList() {
       header: "Created",
       render: (merchant: Merchant) => (
         <span className="text-muted-foreground">
-          {format(new Date(merchant.created_at), "MMM d, yyyy")}
+          {merchant.created_at && !isNaN(new Date(merchant.created_at).getTime())
+            ? format(new Date(merchant.created_at), "MMM d, yyyy")
+            : "—"}
         </span>
+      ),
+    },
+    {
+      key: "actions",
+      header: "",
+      render: (merchant: Merchant) => (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={(e) => {
+            e.stopPropagation();
+            navigate(`/merchants/${merchant.id}/settings`);
+          }}
+        >
+          <Settings className="h-4 w-4" />
+        </Button>
       ),
     },
   ];

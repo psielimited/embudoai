@@ -198,6 +198,63 @@ export type Database = {
           },
         ]
       }
+      channel_events: {
+        Row: {
+          channel: string
+          created_at: string
+          event_type: string
+          external_contact: string | null
+          id: string
+          merchant_id: string
+          org_id: string
+          payload: Json
+          processed_at: string | null
+          provider: string
+          provider_event_id: string
+        }
+        Insert: {
+          channel: string
+          created_at?: string
+          event_type: string
+          external_contact?: string | null
+          id?: string
+          merchant_id: string
+          org_id: string
+          payload: Json
+          processed_at?: string | null
+          provider: string
+          provider_event_id: string
+        }
+        Update: {
+          channel?: string
+          created_at?: string
+          event_type?: string
+          external_contact?: string | null
+          id?: string
+          merchant_id?: string
+          org_id?: string
+          payload?: Json
+          processed_at?: string | null
+          provider?: string
+          provider_event_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "channel_events_merchant_id_fkey"
+            columns: ["merchant_id"]
+            isOneToOne: false
+            referencedRelation: "merchants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "channel_events_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contact_channels: {
         Row: {
           channel: string
@@ -609,6 +666,9 @@ export type Database = {
           name: string
           org_id: string
           status: string
+          whatsapp_app_secret: string | null
+          whatsapp_phone_number_id: string | null
+          whatsapp_verify_token: string | null
         }
         Insert: {
           created_at?: string
@@ -616,6 +676,9 @@ export type Database = {
           name: string
           org_id: string
           status?: string
+          whatsapp_app_secret?: string | null
+          whatsapp_phone_number_id?: string | null
+          whatsapp_verify_token?: string | null
         }
         Update: {
           created_at?: string
@@ -623,6 +686,9 @@ export type Database = {
           name?: string
           org_id?: string
           status?: string
+          whatsapp_app_secret?: string | null
+          whatsapp_phone_number_id?: string | null
+          whatsapp_verify_token?: string | null
         }
         Relationships: [
           {
@@ -636,32 +702,53 @@ export type Database = {
       }
       messages: {
         Row: {
+          channel: string
           content: string
           conversation_id: string
           created_at: string
+          delivered_at: string | null
+          delivery_status: string
+          failed_at: string | null
           id: string
           metadata: Json
           org_id: string
+          provider: string | null
+          provider_message_id: string | null
+          read_at: string | null
           reply_to_message_id: string | null
           sender: string
         }
         Insert: {
+          channel?: string
           content: string
           conversation_id: string
           created_at?: string
+          delivered_at?: string | null
+          delivery_status?: string
+          failed_at?: string | null
           id?: string
           metadata?: Json
           org_id: string
+          provider?: string | null
+          provider_message_id?: string | null
+          read_at?: string | null
           reply_to_message_id?: string | null
           sender: string
         }
         Update: {
+          channel?: string
           content?: string
           conversation_id?: string
           created_at?: string
+          delivered_at?: string | null
+          delivery_status?: string
+          failed_at?: string | null
           id?: string
           metadata?: Json
           org_id?: string
+          provider?: string | null
+          provider_message_id?: string | null
+          read_at?: string | null
           reply_to_message_id?: string | null
           sender?: string
         }

@@ -23,6 +23,10 @@ interface IngestRequest {
   external_contact: string;
   content: string;
   sender?: "user" | "ai" | "human";
+  channel?: string;
+  provider?: string;
+  provider_message_id?: string;
+  metadata?: Record<string, unknown>;
 }
 
 function normalizeContact(raw: string): string {
@@ -215,15 +219,21 @@ Deno.serve(async (req) => {
       }
     }
 
-    // 5. Insert message
+    // 5. Insert message (with provider fields if supplied)
+    const messageInsert: Record<string, unknown> = {
+      conversation_id: conversationId,
+      sender,
+      content: body.content,
+      org_id: orgId,
+    };
+    if (body.channel) messageInsert.channel = body.channel;
+    if (body.provider) messageInsert.provider = body.provider;
+    if (body.provider_message_id) messageInsert.provider_message_id = body.provider_message_id;
+    if (body.metadata) messageInsert.metadata = body.metadata;
+
     const { data: newMessage, error: messageError } = await supabase
       .from("messages")
-      .insert({
-        conversation_id: conversationId,
-        sender,
-        content: body.content,
-        org_id: orgId,
-      })
+      .insert(messageInsert)
       .select("id")
       .single();
 
