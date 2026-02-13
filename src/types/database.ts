@@ -4,6 +4,9 @@ export interface Merchant {
   status: 'active' | 'inactive';
   org_id: string;
   created_at: string;
+  whatsapp_phone_number_id: string | null;
+  whatsapp_verify_token: string | null;
+  whatsapp_app_secret: string | null;
 }
 
 export interface Conversation {
@@ -33,6 +36,13 @@ export interface Message {
   content: string;
   metadata: Record<string, unknown>;
   reply_to_message_id: string | null;
+  channel: string;
+  provider: string | null;
+  provider_message_id: string | null;
+  delivery_status: 'unknown' | 'sent' | 'delivered' | 'read' | 'failed';
+  delivered_at: string | null;
+  read_at: string | null;
+  failed_at: string | null;
   created_at: string;
 }
 
@@ -45,4 +55,18 @@ export interface ContactChannel {
   lead_id: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface ChannelEvent {
+  id: string;
+  org_id: string;
+  merchant_id: string;
+  channel: string;
+  provider: string;
+  event_type: string;
+  provider_event_id: string;
+  external_contact: string | null;
+  payload: Record<string, unknown>;
+  processed_at: string | null;
+  created_at: string;
 }

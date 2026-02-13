@@ -22,6 +22,7 @@ import LeadDetail from "@/pages/LeadDetail";
 import ContactList from "@/pages/ContactList";
 import ContactDetail from "@/pages/ContactDetail";
 import ImportLeads from "@/pages/ImportLeads";
+import MerchantSettings from "@/pages/MerchantSettings";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/NotFound";
 
@@ -51,6 +52,7 @@ const App = () => (
           <Route path="/merchants" element={<P><MerchantList /></P>} />
           <Route path="/merchants/:merchantId/conversations" element={<P><MerchantConversations /></P>} />
           <Route path="/merchants/:merchantId/conversations/:conversationId" element={<P><ConversationDetail /></P>} />
+          <Route path="/merchants/:merchantId/settings" element={<P><MerchantSettings /></P>} />
           <Route path="/leads" element={<P><LeadList /></P>} />
           <Route path="/leads/:leadId" element={<P><LeadDetail /></P>} />
           <Route path="/contacts" element={<P><ContactList /></P>} />

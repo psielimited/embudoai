@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { Bot, User, Headphones } from "lucide-react";
+import { Bot, User, Headphones, Check, CheckCheck, AlertCircle, Clock } from "lucide-react";
 import type { Message } from "@/types/database";
 
 interface MessageBubbleProps {
@@ -31,10 +31,20 @@ const senderConfig = {
   },
 };
 
+const deliveryIcons: Record<string, { icon: typeof Check; className: string; label: string }> = {
+  sent: { icon: Check, className: "text-muted-foreground", label: "Sent" },
+  delivered: { icon: CheckCheck, className: "text-muted-foreground", label: "Delivered" },
+  read: { icon: CheckCheck, className: "text-blue-500", label: "Read" },
+  failed: { icon: AlertCircle, className: "text-destructive", label: "Failed" },
+  unknown: { icon: Clock, className: "text-muted-foreground/50", label: "Pending" },
+};
+
 export function MessageBubble({ message }: MessageBubbleProps) {
   const config = senderConfig[message.sender];
   const Icon = config.icon;
   const isRight = config.align === 'right';
+  const showDelivery = isRight && message.delivery_status && message.delivery_status !== 'unknown';
+  const delivery = deliveryIcons[message.delivery_status ?? 'unknown'];
 
   return (
     <div className={cn("flex gap-3 max-w-[80%]", isRight && "ml-auto flex-row-reverse")}>
@@ -48,7 +58,11 @@ export function MessageBubble({ message }: MessageBubbleProps) {
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <span className="font-medium">{config.label}</span>
           <span>•</span>
-          <time>{format(new Date(message.created_at), "h:mm a")}</time>
+          <time>
+            {message.created_at && !isNaN(new Date(message.created_at).getTime())
+              ? format(new Date(message.created_at), "h:mm a")
+              : "—"}
+          </time>
         </div>
         <div className={cn(
           "rounded-2xl px-4 py-2.5 shadow-sm",
@@ -58,6 +72,12 @@ export function MessageBubble({ message }: MessageBubbleProps) {
         )}>
           <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
         </div>
+        {showDelivery && delivery && (
+          <div className="flex items-center gap-1 text-xs">
+            <delivery.icon className={cn("h-3 w-3", delivery.className)} />
+            <span className={delivery.className}>{delivery.label}</span>
+          </div>
+        )}
       </div>
     </div>
   );
