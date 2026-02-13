@@ -11,18 +11,7 @@
  *   Optional:
  *     - sender (string; default "user"; allowed: user|ai|human)
  * 
- * Response:
- *   Success (200): { "conversation_id": "<uuid>", "message_id": "<uuid>" }
- *   Error (400/500): { "error": "<message>" }
- * 
- * Sample curl:
- *   curl -X POST "https://aieeppwgsmjigvwoeaar.supabase.co/functions/v1/ingest-message" \
- *     -H "Content-Type: application/json" \
- *     -d '{
- *       "merchant_id":"00000000-0000-0000-0000-000000000000",
- *       "external_contact":"+18095551212",
- *       "content":"Hola, quiero informacion"
- *     }'
+ * org_id is derived from the merchant record automatically.
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -42,12 +31,10 @@ interface IngestRequest {
 }
 
 Deno.serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Only allow POST
   if (req.method !== "POST") {
     return new Response(
       JSON.stringify({ error: "Method not allowed" }),
@@ -56,10 +43,8 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Parse request body
     const body: IngestRequest = await req.json();
 
-    // Validate required fields
     if (!body.merchant_id || !body.external_contact || !body.content) {
       return new Response(
         JSON.stringify({ error: "merchant_id, external_contact, content are required" }),
@@ -67,7 +52,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Validate sender if provided
     const validSenders = ["user", "ai", "human"];
     const sender = body.sender || "user";
     if (!validSenders.includes(sender)) {
@@ -77,10 +61,26 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Create Supabase client with service role
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Derive org_id from merchant
+    const { data: merchant, error: merchantError } = await supabase
+      .from("merchants")
+      .select("id, org_id")
+      .eq("id", body.merchant_id)
+      .single();
+
+    if (merchantError || !merchant) {
+      console.error("Merchant lookup error:", merchantError);
+      return new Response(
+        JSON.stringify({ error: "Merchant not found" }),
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const orgId = merchant.org_id;
 
     // Look up existing conversation
     const { data: existingConversation, error: queryError } = await supabase
@@ -101,7 +101,6 @@ Deno.serve(async (req) => {
     let conversationId: string;
 
     if (existingConversation) {
-      // Update existing conversation timestamp
       const { error: updateError } = await supabase
         .from("conversations")
         .update({ updated_at: new Date().toISOString() })
@@ -117,13 +116,13 @@ Deno.serve(async (req) => {
 
       conversationId = existingConversation.id;
     } else {
-      // Create new conversation
       const { data: newConversation, error: createError } = await supabase
         .from("conversations")
         .insert({
           merchant_id: body.merchant_id,
           external_contact: body.external_contact,
           status: "open",
+          org_id: orgId,
         })
         .select("id")
         .single();
@@ -139,13 +138,14 @@ Deno.serve(async (req) => {
       conversationId = newConversation.id;
     }
 
-    // Insert message
+    // Insert message with org_id
     const { data: newMessage, error: messageError } = await supabase
       .from("messages")
       .insert({
         conversation_id: conversationId,
         sender: sender,
         content: body.content,
+        org_id: orgId,
       })
       .select("id")
       .single();
@@ -158,7 +158,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Return success
     return new Response(
       JSON.stringify({
         conversation_id: conversationId,
