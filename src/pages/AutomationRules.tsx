@@ -5,6 +5,16 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -34,6 +44,7 @@ export default function AutomationRules() {
   const [taskTitle, setTaskTitle] = useState("");
   const [dueInHours, setDueInHours] = useState("24");
   const [assignedTo, setAssignedTo] = useState("owner");
+  const [ruleToDelete, setRuleToDelete] = useState<{ id: string; name: string } | null>(null);
 
   const stages = pipelineData?.stages ?? [];
 
@@ -122,9 +133,7 @@ export default function AutomationRules() {
                   <Button
                     size="icon"
                     variant="ghost"
-                    onClick={() => {
-                      if (confirm("Delete this rule?")) deleteRule.mutate(rule.id);
-                    }}
+                    onClick={() => setRuleToDelete({ id: rule.id, name: rule.name })}
                   >
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
@@ -208,6 +217,30 @@ export default function AutomationRules() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!ruleToDelete} onOpenChange={(open) => !open && setRuleToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete automation rule?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {ruleToDelete ? `This will permanently delete "${ruleToDelete.name}" and cannot be undone.` : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (!ruleToDelete) return;
+                deleteRule.mutate(ruleToDelete.id);
+                setRuleToDelete(null);
+              }}
+              disabled={deleteRule.isPending}
+            >
+              {deleteRule.isPending ? "Deleting..." : "Delete Rule"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

@@ -9,6 +9,17 @@ import { Badge } from "@/components/ui/badge";
 import { useLead, useConvertLead, useDisqualifyLead } from "@/hooks/useLeads";
 import { usePipeline } from "@/hooks/usePipeline";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
@@ -23,6 +34,7 @@ export default function LeadDetail() {
   const disqualifyLead = useDisqualifyLead();
 
   const [convertOpen, setConvertOpen] = useState(false);
+  const [disqualifyOpen, setDisqualifyOpen] = useState(false);
   const [createOpp, setCreateOpp] = useState(false);
   const [selectedStage, setSelectedStage] = useState("");
 
@@ -56,8 +68,10 @@ export default function LeadDetail() {
     try {
       await disqualifyLead.mutateAsync(lead.id);
       toast({ title: "Lead disqualified" });
+      return true;
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
+      return false;
     }
   };
 
@@ -74,9 +88,34 @@ export default function LeadDetail() {
         description={`Source: ${lead.source} · Status: ${lead.status}`}
         actions={lead.status === "open" ? (
           <div className="flex gap-2">
-            <Button variant="outline" onClick={handleDisqualify} disabled={disqualifyLead.isPending}>
-              <XCircle className="h-4 w-4 mr-1" /> Disqualify
-            </Button>
+            <AlertDialog open={disqualifyOpen} onOpenChange={setDisqualifyOpen}>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" disabled={disqualifyLead.isPending}>
+                  <XCircle className="h-4 w-4 mr-1" /> Disqualify
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Disqualify {lead.full_name}?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will mark this lead as disqualified and cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={async (e) => {
+                      e.preventDefault();
+                      const ok = await handleDisqualify();
+                      if (ok) setDisqualifyOpen(false);
+                    }}
+                    disabled={disqualifyLead.isPending}
+                  >
+                    {disqualifyLead.isPending ? "Disqualifying..." : "Disqualify Lead"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
             <Button onClick={() => setConvertOpen(true)}>
               <UserCheck className="h-4 w-4 mr-1" /> Convert to Contact
             </Button>
