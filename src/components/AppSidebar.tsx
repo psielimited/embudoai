@@ -10,13 +10,19 @@ import {
 } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 
-const mainNav = [
+const crmNav = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Pipeline", url: "/pipeline", icon: Kanban },
   { title: "Leads", url: "/leads", icon: UserPlus },
   { title: "Contacts", url: "/contacts", icon: Contact2 },
   { title: "Merchants", url: "/merchants", icon: Store },
+];
+
+const pipelineNav = [
+  { title: "Pipeline", url: "/pipeline", icon: Kanban },
   { title: "Automations", url: "/automation", icon: Zap },
+];
+
+const monitoringNav = [
   { title: "SLA Breaches", url: "/dashboard/sla", icon: AlertTriangle },
   { title: "Reports", url: "/dashboard/reports", icon: FileSpreadsheet },
   { title: "Imports", url: "/imports", icon: Upload },
@@ -28,10 +34,16 @@ const orgNav = [
   { title: "Teams", url: "/org/teams", icon: Shield },
 ];
 
+type NavItem = {
+  title: string;
+  url: string;
+  icon: React.ComponentType<{ className?: string }>;
+};
+
 export function AppSidebar() {
   const location = useLocation();
 
-  const renderItems = (items: typeof mainNav) =>
+  const renderItems = (items: NavItem[]) =>
     items.map((item) => {
       const isActive = location.pathname === item.url ||
         (item.url !== "/" && location.pathname.startsWith(item.url));
@@ -71,10 +83,26 @@ export function AppSidebar() {
       <SidebarContent className="px-3 py-4">
         <SidebarGroup>
           <SidebarGroupLabel className="text-xs font-medium text-muted-foreground uppercase tracking-wider px-3 mb-2">
-            Navigation
+            CRM
           </SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu>{renderItems(mainNav)}</SidebarMenu>
+            <SidebarMenu>{renderItems(crmNav)}</SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-xs font-medium text-muted-foreground uppercase tracking-wider px-3 mb-2 mt-4">
+            Pipeline
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>{renderItems(pipelineNav)}</SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-xs font-medium text-muted-foreground uppercase tracking-wider px-3 mb-2 mt-4">
+            Monitoring
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>{renderItems(monitoringNav)}</SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
         <SidebarGroup>
