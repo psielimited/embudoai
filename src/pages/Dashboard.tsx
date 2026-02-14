@@ -4,8 +4,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAnalyticsDaily, useSlaEvents } from "@/hooks/useReporting";
 import { usePipeline } from "@/hooks/usePipeline";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { useOpportunityStats } from "@/hooks/useOpportunities";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
@@ -28,34 +27,9 @@ export default function DashboardPage() {
   const { data: analytics = [], isLoading: analyticsLoading } = useAnalyticsDaily(days);
   const { data: slaBreaches = [] } = useSlaEvents({ resolved: false });
   const { data: pipelineData } = usePipeline();
+  const { data: oppStats } = useOpportunityStats();
 
   const stages = pipelineData?.stages ?? [];
-
-  // Live queries for current stats
-  const { data: oppStats } = useQuery({
-    queryKey: ["opp-stats"],
-    queryFn: async () => {
-      const { data: opps, error } = await supabase
-        .from("opportunities")
-        .select("status, stage_id, created_at, updated_at");
-      if (error) throw error;
-      const today = new Date().toISOString().slice(0, 10);
-      const movedToday = opps?.filter(o => o.updated_at.slice(0, 10) === today).length ?? 0;
-      const won = opps?.filter(o => o.status === "won").length ?? 0;
-      const lost = opps?.filter(o => o.status === "lost").length ?? 0;
-      const open = opps?.filter(o => o.status === "open").length ?? 0;
-
-      // Current stage distribution
-      const byStageCounts: Record<string, number> = {};
-      for (const o of (opps ?? [])) {
-        if (o.status === "open") {
-          byStageCounts[o.stage_id] = (byStageCounts[o.stage_id] || 0) + 1;
-        }
-      }
-
-      return { movedToday, won, lost, open, byStageCounts };
-    },
-  });
 
   // Aggregate analytics for charts
   const wonCount = analytics.filter(a => a.metric === "won_count").reduce((s, a) => s + Number(a.value), 0);

@@ -58,6 +58,7 @@ export function useConvertLead() {
       qc.invalidateQueries({ queryKey: ["leads"] });
       qc.invalidateQueries({ queryKey: ["contacts"] });
       qc.invalidateQueries({ queryKey: ["opportunities"] });
+      qc.invalidateQueries({ queryKey: ["opportunity-stats"] });
     },
   });
 }
