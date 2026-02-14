@@ -29,7 +29,16 @@ const MerchantSettings = React.lazy(() => import("@/pages/MerchantSettings"));
 const Login = React.lazy(() => import("@/pages/Login"));
 const NotFound = React.lazy(() => import("@/pages/NotFound"));
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 60_000,
+      gcTime: 5 * 60_000,
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 const P = ({ children }: { children: React.ReactNode }) => (
   <ProtectedRoute><DashboardLayout>{children}</DashboardLayout></ProtectedRoute>
