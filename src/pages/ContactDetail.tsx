@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { KeyValueList } from "@/components/KeyValueList";
 import { useContact } from "@/hooks/useContacts";
 
 export default function ContactDetail() {
@@ -20,6 +21,12 @@ export default function ContactDetail() {
   const phones = (Array.isArray(contact.phones) ? contact.phones : []) as string[];
   const emails = (Array.isArray(contact.emails) ? contact.emails : []) as string[];
   const tags = (Array.isArray(contact.tags) ? contact.tags : []) as string[];
+  const addresses = Array.isArray(contact.addresses)
+    ? (contact.addresses as Array<Record<string, unknown>>)
+    : contact.addresses && typeof contact.addresses === "object"
+      ? [contact.addresses as Record<string, unknown>]
+      : [];
+  const address = addresses[0] ?? {};
 
   return (
     <>
@@ -60,9 +67,19 @@ export default function ContactDetail() {
             </div>
             <div>
               <span className="text-muted-foreground">Addresses:</span>
-              <pre className="text-xs mt-1 bg-muted p-2 rounded">
-                {JSON.stringify(contact.addresses, null, 2)}
-              </pre>
+              <div className="mt-1">
+                <KeyValueList
+                  emptyText="No address on file"
+                  items={[
+                    { label: "Line 1", value: address.line1 },
+                    { label: "Line 2", value: address.line2 },
+                    { label: "City", value: address.city },
+                    { label: "State/Region", value: address.region ?? address.state },
+                    { label: "Postal Code", value: address.postal_code },
+                    { label: "Country", value: address.country },
+                  ]}
+                />
+              </div>
             </div>
           </CardContent>
         </Card>

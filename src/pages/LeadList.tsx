@@ -13,20 +13,46 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+
+const createLeadSchema = z.object({
+  full_name: z.string().trim().min(1, "Full name is required"),
+  phone: z.string().optional(),
+  email: z.string().optional(),
+  source: z.string().trim().min(1).default("manual"),
+});
+
+type CreateLeadForm = z.infer<typeof createLeadSchema>;
 
 export default function LeadList() {
   const navigate = useNavigate();
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [createOpen, setCreateOpen] = useState(false);
-  const [form, setForm] = useState({ full_name: "", phone: "", email: "", source: "manual" });
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors, isValid },
+  } = useForm<CreateLeadForm>({
+    resolver: zodResolver(createLeadSchema),
+    mode: "onChange",
+    defaultValues: {
+      full_name: "",
+      phone: "",
+      email: "",
+      source: "manual",
+    },
+  });
 
   const { data: leads = [], isLoading } = useLeads(
-    statusFilter !== "all" ? { status: statusFilter } : undefined
+    statusFilter !== "all" ? { status: statusFilter } : undefined,
   );
   const createLead = useCreateLead();
 
-  const handleCreate = async () => {
-    if (!form.full_name.trim()) return;
+  const handleCreate = async (form: CreateLeadForm) => {
     try {
       await createLead.mutateAsync({
         full_name: form.full_name,
@@ -35,7 +61,7 @@ export default function LeadList() {
         source: form.source || "manual",
       });
       setCreateOpen(false);
-      setForm({ full_name: "", phone: "", email: "", source: "manual" });
+      reset();
       toast({ title: "Lead created" });
     } catch (err: any) {
       if (err.status === 409) {
@@ -136,35 +162,46 @@ export default function LeadList() {
         }
       />
 
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+      <Dialog
+        open={createOpen}
+        onOpenChange={(open) => {
+          setCreateOpen(open);
+          if (!open) reset();
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>New Lead</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3">
-            <div>
-              <Label>Full Name *</Label>
-              <Input value={form.full_name} onChange={(e) => setForm(f => ({ ...f, full_name: e.target.value }))} />
+          <form onSubmit={handleSubmit(handleCreate)}>
+            <div className="space-y-3">
+              <div>
+                <Label>Full Name *</Label>
+                <Input {...register("full_name")} />
+                {errors.full_name && (
+                  <p className="text-xs text-destructive mt-1">{errors.full_name.message}</p>
+                )}
+              </div>
+              <div>
+                <Label>Phone</Label>
+                <Input {...register("phone")} placeholder="+1234567890" />
+              </div>
+              <div>
+                <Label>Email</Label>
+                <Input type="email" {...register("email")} />
+              </div>
+              <div>
+                <Label>Source</Label>
+                <Input {...register("source")} />
+              </div>
             </div>
-            <div>
-              <Label>Phone</Label>
-              <Input value={form.phone} onChange={(e) => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="+1234567890" />
-            </div>
-            <div>
-              <Label>Email</Label>
-              <Input type="email" value={form.email} onChange={(e) => setForm(f => ({ ...f, email: e.target.value }))} />
-            </div>
-            <div>
-              <Label>Source</Label>
-              <Input value={form.source} onChange={(e) => setForm(f => ({ ...f, source: e.target.value }))} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
-            <Button onClick={handleCreate} disabled={createLead.isPending}>
-              {createLead.isPending ? "Creating…" : "Create Lead"}
-            </Button>
-          </DialogFooter>
+            <DialogFooter className="mt-4">
+              <Button variant="outline" type="button" onClick={() => setCreateOpen(false)}>Cancel</Button>
+              <Button type="submit" disabled={createLead.isPending || !isValid}>
+                {createLead.isPending ? "Creating..." : "Create Lead"}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </>

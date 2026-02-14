@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { KeyValueList } from "@/components/KeyValueList";
 import { useLead, useConvertLead, useDisqualifyLead } from "@/hooks/useLeads";
 import { usePipeline } from "@/hooks/usePipeline";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -46,6 +47,10 @@ export default function LeadDetail() {
   const phones = (Array.isArray(lead.phones) ? lead.phones : []) as string[];
   const emails = (Array.isArray(lead.emails) ? lead.emails : []) as string[];
   const tags = (Array.isArray(lead.tags) ? lead.tags : []) as string[];
+  const utm =
+    lead.utm && typeof lead.utm === "object" && !Array.isArray(lead.utm)
+      ? (lead.utm as Record<string, unknown>)
+      : {};
 
   const handleConvert = async () => {
     try {
@@ -159,9 +164,18 @@ export default function LeadDetail() {
             </div>
             <div>
               <span className="text-muted-foreground">UTM:</span>
-              <pre className="text-xs mt-1 bg-muted p-2 rounded">
-                {JSON.stringify(lead.utm, null, 2)}
-              </pre>
+              <div className="mt-1">
+                <KeyValueList
+                  emptyText="No UTM data tracked yet"
+                  items={[
+                    { label: "Source", value: utm.utm_source },
+                    { label: "Medium", value: utm.utm_medium },
+                    { label: "Campaign", value: utm.utm_campaign },
+                    { label: "Content", value: utm.utm_content },
+                    { label: "Term", value: utm.utm_term },
+                  ]}
+                />
+              </div>
             </div>
           </CardContent>
         </Card>
