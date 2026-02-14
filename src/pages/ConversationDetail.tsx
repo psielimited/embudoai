@@ -107,6 +107,19 @@ export default function ConversationDetail() {
           queryClient.invalidateQueries({ queryKey: ["conversation", conversationId] });
         }
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "messages",
+          filter: `conversation_id=eq.${conversationId}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
+          queryClient.invalidateQueries({ queryKey: ["conversation", conversationId] });
+        }
+      )
       .subscribe();
 
     return () => {
