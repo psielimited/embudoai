@@ -5,7 +5,10 @@ export function useContacts() {
   return useQuery({
     queryKey: ["contacts"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("contacts").select("*").order("created_at", { ascending: false });
+      const { data, error } = await supabase
+        .from("contacts")
+        .select("id,full_name,emails,phones,doc_id,created_at")
+        .order("created_at", { ascending: false });
       if (error) throw error;
       return data ?? [];
     },

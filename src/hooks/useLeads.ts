@@ -6,7 +6,10 @@ export function useLeads(filters?: { status?: string; owner?: string }) {
   return useQuery({
     queryKey: ["leads", filters],
     queryFn: async () => {
-      let q = supabase.from("leads").select("*").order("created_at", { ascending: false });
+      let q = supabase
+        .from("leads")
+        .select("id,full_name,status,source,emails,created_at")
+        .order("created_at", { ascending: false });
       if (filters?.status) q = q.eq("status", filters.status);
       if (filters?.owner) q = q.eq("owner_user_id", filters.owner);
       const { data, error } = await q;

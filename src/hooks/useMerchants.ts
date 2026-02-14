@@ -8,7 +8,7 @@ export function useMerchants() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("merchants")
-        .select("*")
+        .select("id,name,status,created_at")
         .order("created_at", { ascending: false });
 
       if (error) throw error;

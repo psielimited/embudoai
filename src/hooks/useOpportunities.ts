@@ -10,8 +10,9 @@ export function useOpportunities(pipelineId?: string) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("opportunities")
-        .select("*")
-        .eq("pipeline_id", pipelineId!);
+        .select("id,name,amount,status,stage_id,version,owner_user_id,expected_close_date,created_at,updated_at")
+        .eq("pipeline_id", pipelineId!)
+        .eq("status", "open");
       if (error) throw error;
       return data ?? [];
     },
