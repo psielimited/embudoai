@@ -141,13 +141,10 @@ Deno.serve(async (req) => {
     }
 
     // 5. Update message to sending
-    await supabase
-      .from("messages")
-      .update({ send_status: "sending", send_error: null })
-      .eq("id", message_id);
+    await supabase.from("messages").update({ send_status: "sending", send_error: null }).eq("id", message_id);
 
     // 6. Call WhatsApp Cloud API
-    const waUrl = `https://graph.facebook.com/v21.0/${merchant.whatsapp_phone_number_id}/messages`;
+    const waUrl = `https://graph.facebook.com/v24.0/${merchant.whatsapp_phone_number_id}/messages`;
 
     // Build payload — text for now, metadata can carry template info later
     const waPayload: Record<string, unknown> = {
@@ -234,10 +231,7 @@ Deno.serve(async (req) => {
       const errorMsg = String(fetchErr).slice(0, 500);
       console.error("WhatsApp API fetch error:", errorMsg);
 
-      await supabase
-        .from("messages")
-        .update({ send_status: "failed", send_error: errorMsg })
-        .eq("id", message_id);
+      await supabase.from("messages").update({ send_status: "failed", send_error: errorMsg }).eq("id", message_id);
 
       await supabase
         .from("outbound_jobs")
