@@ -40,9 +40,13 @@ const queryClient = new QueryClient({
   },
 });
 
-const P = ({ children }: { children: React.ReactNode }) => (
-  <ProtectedRoute><DashboardLayout>{children}</DashboardLayout></ProtectedRoute>
-);
+function ProtectedDashboard({ children }: { children: React.ReactNode }) {
+  return (
+    <ProtectedRoute>
+      <DashboardLayout>{children}</DashboardLayout>
+    </ProtectedRoute>
+  );
+}
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -53,24 +57,24 @@ const App = () => (
         <Suspense fallback={<PageSkeleton />}>
           <Routes>
             <Route path="/login" element={<Login />} />
-            <Route path="/" element={<P><Dashboard /></P>} />
-            <Route path="/pipeline" element={<P><PipelineBoard /></P>} />
-            <Route path="/pipeline/opportunities/:opportunityId" element={<P><OpportunityDetail /></P>} />
-            <Route path="/automation" element={<P><AutomationRules /></P>} />
-            <Route path="/dashboard/sla" element={<P><SlaBreaches /></P>} />
-            <Route path="/dashboard/reports" element={<P><Reports /></P>} />
-            <Route path="/org/settings" element={<P><OrgSettings /></P>} />
-            <Route path="/org/users" element={<P><OrgUsers /></P>} />
-            <Route path="/org/teams" element={<P><OrgTeams /></P>} />
-            <Route path="/merchants" element={<P><MerchantList /></P>} />
-            <Route path="/merchants/:merchantId/conversations" element={<P><MerchantConversations /></P>} />
-            <Route path="/merchants/:merchantId/conversations/:conversationId" element={<P><ConversationDetail /></P>} />
-            <Route path="/merchants/:merchantId/settings" element={<P><MerchantSettings /></P>} />
-            <Route path="/leads" element={<P><LeadList /></P>} />
-            <Route path="/leads/:leadId" element={<P><LeadDetail /></P>} />
-            <Route path="/contacts" element={<P><ContactList /></P>} />
-            <Route path="/contacts/:contactId" element={<P><ContactDetail /></P>} />
-            <Route path="/imports" element={<P><ImportLeads /></P>} />
+            <Route path="/" element={<ProtectedDashboard><Dashboard /></ProtectedDashboard>} />
+            <Route path="/pipeline" element={<ProtectedDashboard><PipelineBoard /></ProtectedDashboard>} />
+            <Route path="/pipeline/opportunities/:opportunityId" element={<ProtectedDashboard><OpportunityDetail /></ProtectedDashboard>} />
+            <Route path="/automation" element={<ProtectedDashboard><AutomationRules /></ProtectedDashboard>} />
+            <Route path="/dashboard/sla" element={<ProtectedDashboard><SlaBreaches /></ProtectedDashboard>} />
+            <Route path="/dashboard/reports" element={<ProtectedDashboard><Reports /></ProtectedDashboard>} />
+            <Route path="/org/settings" element={<ProtectedDashboard><OrgSettings /></ProtectedDashboard>} />
+            <Route path="/org/users" element={<ProtectedDashboard><OrgUsers /></ProtectedDashboard>} />
+            <Route path="/org/teams" element={<ProtectedDashboard><OrgTeams /></ProtectedDashboard>} />
+            <Route path="/merchants" element={<ProtectedDashboard><MerchantList /></ProtectedDashboard>} />
+            <Route path="/merchants/:merchantId/conversations" element={<ProtectedDashboard><MerchantConversations /></ProtectedDashboard>} />
+            <Route path="/merchants/:merchantId/conversations/:conversationId" element={<ProtectedDashboard><ConversationDetail /></ProtectedDashboard>} />
+            <Route path="/merchants/:merchantId/settings" element={<ProtectedDashboard><MerchantSettings /></ProtectedDashboard>} />
+            <Route path="/leads" element={<ProtectedDashboard><LeadList /></ProtectedDashboard>} />
+            <Route path="/leads/:leadId" element={<ProtectedDashboard><LeadDetail /></ProtectedDashboard>} />
+            <Route path="/contacts" element={<ProtectedDashboard><ContactList /></ProtectedDashboard>} />
+            <Route path="/contacts/:contactId" element={<ProtectedDashboard><ContactDetail /></ProtectedDashboard>} />
+            <Route path="/imports" element={<ProtectedDashboard><ImportLeads /></ProtectedDashboard>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </Suspense>

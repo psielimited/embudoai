@@ -70,10 +70,10 @@ export default function PipelineBoard() {
     [draggedOppId, opportunities, moveStage]
   );
 
-  const handleDragOver = (e: React.DragEvent) => {
+  const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
-  };
+  }, []);
 
   if (isLoading) {
     return (

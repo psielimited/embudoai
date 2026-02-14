@@ -1,5 +1,6 @@
 import { Card, CardContent } from "@/components/ui/card";
-import { DollarSign, User } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { DollarSign } from "lucide-react";
 
 interface OpportunityCardProps {
   opportunity: {
@@ -31,10 +32,9 @@ export function OpportunityCard({ opportunity, onDragStart, onClick }: Opportuni
               {Number(opportunity.amount).toLocaleString()}
             </span>
           )}
-          <span className="flex items-center gap-1">
-            <User className="h-3 w-3" />
-            v{opportunity.version}
-          </span>
+          <Badge variant="secondary" className="text-[10px] capitalize px-2 py-0 h-5">
+            {opportunity.status || "open"}
+          </Badge>
         </div>
       </CardContent>
     </Card>
