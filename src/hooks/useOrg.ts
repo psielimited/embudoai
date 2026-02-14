@@ -1,5 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { invalidateActiveOrgCache } from "@/lib/auth";
+import { callEdge } from "@/lib/edge";
 
 export function useOrgs() {
   return useQuery({
@@ -16,7 +18,9 @@ export function useActiveOrg() {
   return useQuery({
     queryKey: ["active-org"],
     queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) return null;
       const { data, error } = await supabase
         .from("profiles")
@@ -78,22 +82,9 @@ export function useSwitchOrg() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (orgId: string) => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
-      const resp = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/set-active-org`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${session.access_token}`,
-            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-          },
-          body: JSON.stringify({ org_id: orgId }),
-        }
-      );
-      if (!resp.ok) throw new Error("Failed to switch org");
-      return resp.json();
+      const result = await callEdge("set-active-org", { org_id: orgId });
+      invalidateActiveOrgCache();
+      return result;
     },
     onSuccess: () => {
       // Invalidate everything to reload with new org context

@@ -1,16 +1,15 @@
 import { useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useActiveOrg, useOrgMembers, useAddOrgMember, useRemoveOrgMember, useUpdateOrgMemberRole } from "@/hooks/useOrg";
 import { useOrgs } from "@/hooks/useOrg";
-import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Plus, Trash2, UserPlus } from "lucide-react";
+import { callEdge } from "@/lib/edge";
+import { Loader2, Trash2, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
 const ROLES = ["org_admin", "manager", "rep", "analyst"];
@@ -34,30 +33,8 @@ export default function OrgUsers() {
     if (!activeOrgId || !email.trim()) return;
 
     try {
-      // Look up user by email via edge function (uses admin API)
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { toast.error("Not authenticated"); return; }
-
-      const resp = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/find-user-by-email`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${session.access_token}`,
-            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-          },
-          body: JSON.stringify({ email: email.trim() }),
-        }
-      );
-
-      if (!resp.ok) {
-        const body = await resp.json().catch(() => ({}));
-        toast.error(body.error || "User not found. They must sign up first.");
-        return;
-      }
-
-      const found = await resp.json();
+      const found = await callEdge<{ user_id?: string }>("find-user-by-email", { email: email.trim() });
+      if (!found.user_id) throw new Error("User not found. They must sign up first.");
 
       await addMember.mutateAsync({
         org_id: activeOrgId,

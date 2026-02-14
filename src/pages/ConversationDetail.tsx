@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { callEdge } from "@/lib/edge";
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 
@@ -119,30 +120,15 @@ export default function ConversationDetail() {
     // Find the latest user message
     const lastUserMsg = [...messages].reverse().find((m) => m.sender === "user");
     try {
-      const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-ai-reply`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
-          body: JSON.stringify({
-            conversation_id: conversationId,
-            trigger_message_id: lastUserMsg?.id ?? null,
-          }),
-        }
-      );
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        toast.error(err.error || "Failed to regenerate AI draft");
-      } else {
-        toast.success("AI draft regenerated");
-        queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
-        queryClient.invalidateQueries({ queryKey: ["conversation", conversationId] });
-      }
-    } catch (e) {
-      toast.error("Network error regenerating draft");
+      await callEdge("generate-ai-reply", {
+        conversation_id: conversationId,
+        trigger_message_id: lastUserMsg?.id ?? null,
+      });
+      toast.success("AI draft regenerated");
+      queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
+      queryClient.invalidateQueries({ queryKey: ["conversation", conversationId] });
+    } catch (error: any) {
+      toast.error(error.message || "Network error regenerating draft");
     } finally {
       setRegenerating(false);
     }
@@ -151,26 +137,19 @@ export default function ConversationDetail() {
   const handleSendMessage = useCallback(async (messageId: string) => {
     setSendingMessageId(messageId);
     try {
-      const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-whatsapp-message`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
-          body: JSON.stringify({ message_id: messageId }),
-        }
-      );
-      const data = await res.json();
-      if (res.ok && data.ok) {
+      const data = await callEdge<{ ok?: boolean; error?: string }>("send-whatsapp-message", {
+        message_id: messageId,
+      });
+
+      if (data.ok) {
         toast.success("Message sent via WhatsApp");
       } else {
         toast.error(data.error || "Failed to send message");
       }
+
       queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
-    } catch {
-      toast.error("Network error sending message");
+    } catch (error: any) {
+      toast.error(error.message || "Network error sending message");
     } finally {
       setSendingMessageId(null);
     }

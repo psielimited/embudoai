@@ -3,10 +3,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, Bot, Clock, UserCog } from "lucide-react";
+import { AlertTriangle, Bot, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Conversation } from "@/types/database";
+import { callEdge } from "@/lib/edge";
 
 interface ConversationWorkflowProps {
   conversation: Conversation;
@@ -19,26 +20,19 @@ export function ConversationWorkflow({ conversation }: ConversationWorkflowProps
   const callAssign = async (updates: Record<string, unknown>) => {
     setUpdating(true);
     try {
-      const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/assign-conversation`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
-          body: JSON.stringify({ conversation_id: conversation.id, ...updates }),
-        }
-      );
-      const data = await res.json();
-      if (res.ok && data.ok) {
+      const data = await callEdge<{ ok?: boolean; error?: string }>("assign-conversation", {
+        conversation_id: conversation.id,
+        ...updates,
+      });
+
+      if (data.ok) {
         toast.success("Conversation updated");
         queryClient.invalidateQueries({ queryKey: ["conversation", conversation.id] });
       } else {
         toast.error(data.error || "Update failed");
       }
-    } catch {
-      toast.error("Network error");
+    } catch (error: any) {
+      toast.error(error.message || "Network error");
     } finally {
       setUpdating(false);
     }

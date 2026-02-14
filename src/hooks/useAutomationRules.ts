@@ -1,13 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-
-async function getActiveOrgId(): Promise<string> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  const { data } = await supabase.from("profiles").select("active_org_id").eq("user_id", user.id).single();
-  if (!data?.active_org_id) throw new Error("No active org");
-  return data.active_org_id;
-}
+import { getActiveOrgId } from "@/lib/auth";
 
 export interface AutomationRule {
   id: string;
