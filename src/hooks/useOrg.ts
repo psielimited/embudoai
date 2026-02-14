@@ -38,12 +38,27 @@ export function useOrgMembers(orgId?: string) {
     queryKey: ["org-members", orgId],
     enabled: !!orgId,
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data: members, error } = await supabase
         .from("org_members")
-        .select("*, profiles:user_id(full_name)")
+        .select("*")
         .eq("org_id", orgId!);
       if (error) throw error;
-      return data ?? [];
+      if (!members || members.length === 0) return [];
+
+      const userIds = members.map((m) => m.user_id);
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, full_name")
+        .in("user_id", userIds);
+
+      const profileMap = new Map(
+        (profiles ?? []).map((p) => [p.user_id, p.full_name])
+      );
+
+      return members.map((m) => ({
+        ...m,
+        profiles: { full_name: profileMap.get(m.user_id) ?? null },
+      }));
     },
   });
 }

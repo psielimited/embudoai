@@ -44,7 +44,7 @@ export default function LeadDetail() {
         payload.initial_stage_id = selectedStage || pipelineData.stages[0]?.id;
       }
       const result = await convertLead.mutateAsync(payload);
-      toast({ title: result.merged ? "Lead merged into existing contact" : "Lead converted to contact" });
+      toast({ title: (result as any).merged ? "Lead merged into existing contact" : "Lead converted to contact" });
       setConvertOpen(false);
       navigate("/contacts");
     } catch (err: any) {
