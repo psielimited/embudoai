@@ -96,17 +96,12 @@ export default function Login() {
           <div className="mx-auto mb-4 w-12 h-12 rounded-xl bg-primary flex items-center justify-center">
             <MessageSquare className="h-6 w-6 text-primary-foreground" />
           </div>
-          <CardTitle className="text-2xl">EmbudoAI</CardTitle>
+          <CardTitle className="text-2xl">Embudex</CardTitle>
           <CardDescription>Admin Dashboard</CardDescription>
         </CardHeader>
         <CardContent>
           {/* Google Sign In Button */}
-          <Button
-            variant="outline"
-            className="w-full mb-4"
-            onClick={handleGoogleSignIn}
-            disabled={isGoogleLoading}
-          >
+          <Button variant="outline" className="w-full mb-4" onClick={handleGoogleSignIn} disabled={isGoogleLoading}>
             {isGoogleLoading ? (
               <Loader2 className="h-4 w-4 animate-spin mr-2" />
             ) : (
@@ -180,9 +175,7 @@ export default function Login() {
                   </div>
                 </div>
                 <Button type="submit" className="w-full" disabled={isSubmitting}>
-                  {isSubmitting ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  ) : null}
+                  {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                   Sign In
                 </Button>
               </form>
@@ -236,9 +229,7 @@ export default function Login() {
                   </div>
                 </div>
                 <Button type="submit" className="w-full" disabled={isSubmitting}>
-                  {isSubmitting ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  ) : null}
+                  {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                   Create Account
                 </Button>
               </form>
