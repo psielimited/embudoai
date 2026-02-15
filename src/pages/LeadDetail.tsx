@@ -7,7 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { KeyValueList } from "@/components/KeyValueList";
+import { StatusBadge } from "@/components/StatusBadge";
 import { useLead, useConvertLead, useDisqualifyLead } from "@/hooks/useLeads";
+import { useConversationsByLead } from "@/hooks/useConversations";
 import { usePipeline } from "@/hooks/usePipeline";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
@@ -30,6 +32,7 @@ export default function LeadDetail() {
   const { leadId } = useParams();
   const navigate = useNavigate();
   const { data: lead, isLoading } = useLead(leadId);
+  const { data: relatedConversations = [], isLoading: isLoadingConversations } = useConversationsByLead(leadId);
   const { data: pipelineData } = usePipeline();
   const convertLead = useConvertLead();
   const disqualifyLead = useDisqualifyLead();
@@ -177,6 +180,43 @@ export default function LeadDetail() {
                 />
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card className="md:col-span-2">
+          <CardHeader>
+            <CardTitle className="text-base">Related Conversations</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isLoadingConversations ? (
+              <div className="flex items-center py-4 text-muted-foreground">
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Loading conversations...
+              </div>
+            ) : relatedConversations.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No related conversations yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {relatedConversations.map((conversation) => (
+                  <button
+                    key={conversation.id}
+                    type="button"
+                    onClick={() => navigate(`/merchants/${conversation.merchant_id}/conversations/${conversation.id}`)}
+                    className="w-full rounded-md border px-3 py-2 text-left hover:bg-muted/40 transition-colors"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="font-medium">{conversation.external_contact || "Unknown contact"}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Updated {format(new Date(conversation.updated_at), "MMM d, yyyy h:mm a")}
+                        </p>
+                      </div>
+                      <StatusBadge status={conversation.status} />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
