@@ -1,0 +1,20 @@
+{   
+  "object": "whatsapp_business_account",
+  "entry": [{
+    "id": "804704402661273",
+    "changes": [{
+      "field": "messages",
+      "value": {
+        "messaging_product": "whatsapp",
+        "metadata": { "phone_number_id": "939134292624820" },
+        "messages": [{
+          "id": "wamid.TEST-INBOUND-001",
+          "from": "15551234567",
+          "timestamp": "1730000000",
+          "type": "text",
+          "text": { "body": "Hello from webhook simulation" }
+        }]
+      }
+    }]
+  }]   
+}

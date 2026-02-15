@@ -24,6 +24,7 @@ const LeadList = React.lazy(() => import("@/pages/LeadList"));
 const LeadDetail = React.lazy(() => import("@/pages/LeadDetail"));
 const ContactList = React.lazy(() => import("@/pages/ContactList"));
 const ContactDetail = React.lazy(() => import("@/pages/ContactDetail"));
+const Conversations = React.lazy(() => import("@/pages/Conversations"));
 const ImportLeads = React.lazy(() => import("@/pages/ImportLeads"));
 const MerchantSettings = React.lazy(() => import("@/pages/MerchantSettings"));
 const Login = React.lazy(() => import("@/pages/Login"));
@@ -74,6 +75,7 @@ const App = () => (
             <Route path="/leads/:leadId" element={<ProtectedDashboard><LeadDetail /></ProtectedDashboard>} />
             <Route path="/contacts" element={<ProtectedDashboard><ContactList /></ProtectedDashboard>} />
             <Route path="/contacts/:contactId" element={<ProtectedDashboard><ContactDetail /></ProtectedDashboard>} />
+            <Route path="/conversations" element={<ProtectedDashboard><Conversations /></ProtectedDashboard>} />
             <Route path="/imports" element={<ProtectedDashboard><ImportLeads /></ProtectedDashboard>} />
             <Route path="*" element={<NotFound />} />
           </Routes>

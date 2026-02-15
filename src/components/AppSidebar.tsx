@@ -9,9 +9,12 @@ import {
   SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import { useConversationUnreadCounts } from "@/hooks/useConversations";
 
 const crmNav = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
+  { title: "Conversations", url: "/conversations", icon: MessageSquare },
   { title: "Leads", url: "/leads", icon: UserPlus },
   { title: "Contacts", url: "/contacts", icon: Contact2 },
   { title: "Merchants", url: "/merchants", icon: Store },
@@ -42,6 +45,7 @@ type NavItem = {
 
 export function AppSidebar() {
   const location = useLocation();
+  const { data: unreadCounts } = useConversationUnreadCounts();
 
   const renderItems = (items: NavItem[]) =>
     items.map((item) => {
@@ -61,6 +65,11 @@ export function AppSidebar() {
             >
               <item.icon className="h-4 w-4" />
               <span>{item.title}</span>
+              {item.url === "/conversations" && (unreadCounts?.totalUnread ?? 0) > 0 && (
+                <Badge className="ml-auto h-5 min-w-5 px-1.5 text-[10px]">
+                  {unreadCounts?.totalUnread}
+                </Badge>
+              )}
             </NavLink>
           </SidebarMenuButton>
         </SidebarMenuItem>

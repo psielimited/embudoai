@@ -11,7 +11,9 @@ import { DataTable } from "@/components/DataTable";
 import { StatusBadge } from "@/components/StatusBadge";
 import { EmptyState } from "@/components/EmptyState";
 import { useCreateMerchant, useMerchants, useUpdateMerchant } from "@/hooks/useMerchants";
+import { useConversationUnreadCounts } from "@/hooks/useConversations";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -87,6 +89,7 @@ export default function MerchantList() {
   const [editingName, setEditingName] = useState("");
   const [showInactive, setShowInactive] = useState(false);
   const { data: merchants = [], isLoading } = useMerchants();
+  const { data: unreadCounts } = useConversationUnreadCounts();
   const createMerchant = useCreateMerchant();
   const updateMerchant = useUpdateMerchant();
 
@@ -189,6 +192,11 @@ export default function MerchantList() {
               >
                 {merchant.name}
               </span>
+              {(unreadCounts?.byMerchant?.[merchant.id] ?? 0) > 0 && (
+                <Badge variant="secondary" className="text-[10px]">
+                  {unreadCounts?.byMerchant?.[merchant.id]} new
+                </Badge>
+              )}
               <Button
                 variant="ghost"
                 size="icon"

@@ -13,10 +13,12 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { callEdge } from "@/lib/edge";
 import { useState, useEffect, useCallback } from "react";
+import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
 function useLinkedLead(leadId: string | null | undefined) {
@@ -74,8 +76,11 @@ export default function ConversationDetail() {
   }>();
 
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [regenerating, setRegenerating] = useState(false);
   const [sendingMessageId, setSendingMessageId] = useState<string | null>(null);
+  const [manualReply, setManualReply] = useState("");
+  const [sendingManualReply, setSendingManualReply] = useState(false);
 
   const { data: merchant } = useMerchant(merchantId!);
   const { data: conversation, isLoading: convLoading } = useConversation(conversationId!);
@@ -168,6 +173,74 @@ export default function ConversationDetail() {
     }
   }, [conversationId, queryClient]);
 
+  const handleAssignToMe = async () => {
+    if (!conversationId || !user) return;
+
+    try {
+      const { error } = await supabase
+        .from("conversations")
+        .update({ owner_user_id: user.id })
+        .eq("id", conversationId);
+
+      if (error) throw error;
+
+      toast.success("Assigned to you");
+      queryClient.invalidateQueries({ queryKey: ["conversation", conversationId] });
+      queryClient.invalidateQueries({ queryKey: ["global-conversations"] });
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to assign conversation");
+    }
+  };
+
+  const handleSendManualReply = async () => {
+    if (!conversation || !conversationId) return;
+    const content = manualReply.trim();
+    if (!content) return;
+
+    setSendingManualReply(true);
+    try {
+      const { data: message, error: insertError } = await supabase
+        .from("messages")
+        .insert({
+          conversation_id: conversationId,
+          org_id: conversation.org_id,
+          sender: "human",
+          direction: "outbound",
+          channel: "whatsapp",
+          content,
+          send_status: "unsent",
+          delivery_status: "unknown",
+          metadata: { manual: true },
+        })
+        .select("id")
+        .single();
+
+      if (insertError) throw insertError;
+
+      const result = await callEdge<{ ok?: boolean; error?: string }>("send-whatsapp-message", {
+        message_id: message.id,
+      });
+
+      if (!result.ok) {
+        toast.error(result.error || "Failed to send reply");
+      } else {
+        toast.success("Reply sent");
+        setManualReply("");
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
+      queryClient.invalidateQueries({ queryKey: ["conversation", conversationId] });
+      queryClient.invalidateQueries({ queryKey: ["conversation-unread-counts"] });
+      queryClient.invalidateQueries({ queryKey: ["global-conversations"] });
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to send reply");
+    } finally {
+      setSendingManualReply(false);
+    }
+  };
+
   if (!conversation && !isLoading) {
     return (
       <EmptyState
@@ -197,7 +270,21 @@ export default function ConversationDetail() {
           { label: merchant?.name ?? "...", href: `/merchants/${merchantId}/conversations` },
           { label: "Conversation" },
         ]}
-        actions={conversation && <StatusBadge status={conversation.status} />}
+        actions={
+          conversation && (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void handleAssignToMe()}
+                disabled={!user || conversation.owner_user_id === user?.id}
+              >
+                Assign to me
+              </Button>
+              <StatusBadge status={conversation.status} />
+            </div>
+          )
+        }
       />
 
       <Card>
@@ -324,6 +411,25 @@ export default function ConversationDetail() {
                   <RefreshCw className="h-4 w-4 mr-1" />
                 )}
                 Regenerate draft
+              </Button>
+            </div>
+          </div>
+
+          {/* Human free-text reply */}
+          <div className="mt-4 pt-4 border-t border-border space-y-2">
+            <p className="text-sm font-medium">Send manual reply</p>
+            <Textarea
+              value={manualReply}
+              onChange={(event) => setManualReply(event.target.value)}
+              placeholder="Type a custom message to the customer..."
+              rows={3}
+            />
+            <div className="flex justify-end">
+              <Button
+                onClick={() => void handleSendManualReply()}
+                disabled={sendingManualReply || manualReply.trim().length === 0}
+              >
+                {sendingManualReply ? "Sending..." : "Send Reply"}
               </Button>
             </div>
           </div>
