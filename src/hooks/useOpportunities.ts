@@ -54,9 +54,19 @@ export function useMoveOpportunityStage() {
       opportunity_id: string;
       to_stage_id: string;
       expected_version: number;
-    }) => callEdge("move-opportunity-stage", params),
-    throwOnError: false,
-    onSuccess: () => {
+    }) => {
+      try {
+        return await callEdge<Record<string, unknown>>("move-opportunity-stage", params);
+      } catch (err: any) {
+        // Return error payload as resolved value so it doesn't trigger error reporters
+        if (err.status && err.data) {
+          return { __error: true, status: err.status, data: err.data, message: err.message } as any;
+        }
+        throw err;
+      }
+    },
+    onSuccess: (result: any) => {
+      if (result?.__error) return; // handled by caller
       qc.invalidateQueries({ queryKey: ["opportunities"] });
       qc.invalidateQueries({ queryKey: ["opportunity-stats"] });
     },
