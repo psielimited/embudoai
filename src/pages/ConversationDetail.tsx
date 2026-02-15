@@ -93,6 +93,12 @@ export default function ConversationDetail() {
   const isLoading = convLoading || messagesLoading;
   const aiStatus = conversation?.ai_status;
   const isAiWorking = aiStatus === "queued" || aiStatus === "generating";
+  const latestAiDraft = [...messages].reverse().find(
+    (message) =>
+      message.sender === "ai" &&
+      message.direction === "outbound" &&
+      message.send_status === "unsent",
+  );
 
   // Realtime subscription for new messages
   useEffect(() => {
@@ -241,6 +247,19 @@ export default function ConversationDetail() {
     }
   };
 
+  const handleDiscardDraft = async () => {
+    if (!latestAiDraft || !conversationId) return;
+    try {
+      const { error } = await supabase.from("messages").delete().eq("id", latestAiDraft.id);
+      if (error) throw error;
+      toast.success("Draft discarded");
+      queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to discard draft");
+    }
+  };
+
   if (!conversation && !isLoading) {
     return (
       <EmptyState
@@ -330,7 +349,7 @@ export default function ConversationDetail() {
                 </Link>
               )}
               {linkedOpp && (
-                <Link to={`/pipeline`}>
+                <Link to={`/pipeline/opportunities/${linkedOpp.id}`}>
                   <Badge variant="secondary" className="gap-1.5 cursor-pointer hover:bg-accent transition-colors">
                     <Briefcase className="h-3 w-3" />
                     Opp: {linkedOpp.name}
@@ -399,19 +418,29 @@ export default function ConversationDetail() {
               </span>
             )}
             <div className="ml-auto">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRegenerate}
-                disabled={regenerating || isAiWorking}
-              >
-                {regenerating ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-1" />
-                ) : (
-                  <RefreshCw className="h-4 w-4 mr-1" />
-                )}
-                Regenerate draft
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => void handleDiscardDraft()}
+                  disabled={!latestAiDraft}
+                >
+                  Discard draft
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleRegenerate}
+                  disabled={regenerating || isAiWorking}
+                >
+                  {regenerating ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4 mr-1" />
+                  )}
+                  Regenerate draft
+                </Button>
+              </div>
             </div>
           </div>
 

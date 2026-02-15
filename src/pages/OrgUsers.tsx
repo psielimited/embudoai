@@ -6,6 +6,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useActiveOrg, useOrgMembers, useAddOrgMember, useRemoveOrgMember, useUpdateOrgMemberRole } from "@/hooks/useOrg";
 import { useOrgs } from "@/hooks/useOrg";
 import { callEdge } from "@/lib/edge";
@@ -23,6 +33,7 @@ export default function OrgUsers() {
   const updateRole = useUpdateOrgMemberRole();
 
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [removeUserId, setRemoveUserId] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("rep");
 
@@ -46,6 +57,25 @@ export default function OrgUsers() {
       setEmail("");
     } catch (err: any) {
       toast.error(err.message || "Failed to add member");
+    }
+  };
+
+  const getDisplayName = (member: any) =>
+    member.profiles?.full_name?.trim() || "Unnamed user";
+
+  const getSecondaryLine = (member: any) =>
+    typeof member.email === "string" && member.email.trim().length > 0
+      ? member.email
+      : "Email unavailable";
+
+  const handleRemoveMember = async () => {
+    if (!activeOrgId || !removeUserId) return;
+    try {
+      await removeMember.mutateAsync({ org_id: activeOrgId, user_id: removeUserId });
+      toast.success("Member removed");
+      setRemoveUserId(null);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to remove member");
     }
   };
 
@@ -80,7 +110,8 @@ export default function OrgUsers() {
             <CardContent className="py-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div>
-                  <p className="font-medium text-sm">{m.profiles?.full_name || m.user_id}</p>
+                  <p className="font-medium text-sm">{getDisplayName(m)}</p>
+                  <p className="text-xs text-muted-foreground">{getSecondaryLine(m)}</p>
                 </div>
                 <Select
                   value={m.role}
@@ -102,11 +133,7 @@ export default function OrgUsers() {
               </div>
               <Button
                 size="icon" variant="ghost"
-                onClick={() => {
-                  if (activeOrgId && confirm("Remove this member?")) {
-                    removeMember.mutate({ org_id: activeOrgId, user_id: m.user_id });
-                  }
-                }}
+                onClick={() => setRemoveUserId(m.user_id)}
               >
                 <Trash2 className="h-4 w-4 text-destructive" />
               </Button>
@@ -145,6 +172,26 @@ export default function OrgUsers() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!removeUserId} onOpenChange={(open) => !open && setRemoveUserId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove this member?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This user will lose access to the organization workspace.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => void handleRemoveMember()}
+            >
+              {removeMember.isPending ? "Removing..." : "Remove Member"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

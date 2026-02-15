@@ -154,11 +154,17 @@ export default function LeadList() {
         onRowClick={(lead) => navigate(`/leads/${lead.id}`)}
         isLoading={isLoading}
         emptyState={
-          <EmptyState
-            icon={Users}
-            title="No leads found"
-            description="Create your first lead or import from CSV."
-          />
+          <div className="py-16 px-4 text-center space-y-3">
+            <EmptyState
+              icon={Users}
+              title="No leads found"
+              description="Create your first lead or import from CSV."
+              className="py-0"
+            />
+            <Button variant="outline" onClick={() => navigate("/imports")}>
+              Go to Imports
+            </Button>
+          </div>
         }
       />
 

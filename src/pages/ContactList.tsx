@@ -115,11 +115,17 @@ export default function ContactList() {
         onRowClick={(c) => navigate(`/contacts/${c.id}`)}
         isLoading={isLoading}
         emptyState={
-          <EmptyState
-            icon={Contact2}
-            title="No contacts yet"
-            description="Create your first contact to get started."
-          />
+          <div className="py-16 px-4 text-center space-y-3">
+            <EmptyState
+              icon={Contact2}
+              title="No contacts yet"
+              description="Create your first contact or import leads to auto-create contacts after conversion."
+              className="py-0"
+            />
+            <Button variant="outline" onClick={() => navigate("/imports")}>
+              Import Leads
+            </Button>
+          </div>
         }
       />
 

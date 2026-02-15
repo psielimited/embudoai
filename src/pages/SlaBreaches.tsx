@@ -4,19 +4,55 @@ import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { useSlaEvents } from "@/hooks/useReporting";
+import { useResolveSlaEvents, useSlaEvents } from "@/hooks/useReporting";
 import { Loader2, AlertTriangle, Clock, ExternalLink } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { toast } from "sonner";
 
 export default function SlaBreaches() {
   const [slaFilter, setSlaFilter] = useState<string>("all");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const { data: events = [], isLoading } = useSlaEvents({
     resolved: false,
     sla_type: slaFilter === "all" ? undefined : slaFilter,
   });
+  const resolveSlaEvents = useResolveSlaEvents();
+
+  const allSelected = events.length > 0 && selectedIds.length === events.length;
+
+  const toggleSelection = (id: string, checked: boolean) => {
+    setSelectedIds((current) => {
+      if (checked) return [...current, id];
+      return current.filter((item) => item !== id);
+    });
+  };
+
+  const handleAcknowledgeSelected = async () => {
+    if (selectedIds.length === 0) return;
+    try {
+      await resolveSlaEvents.mutateAsync({ ids: selectedIds });
+      toast.success(`${selectedIds.length} breach(es) acknowledged`);
+      setSelectedIds([]);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to acknowledge breaches");
+    }
+  };
+
+  const handleResolveFiltered = async () => {
+    try {
+      await resolveSlaEvents.mutateAsync({
+        sla_type: slaFilter === "all" ? undefined : slaFilter,
+      });
+      toast.success("Filtered breaches resolved");
+      setSelectedIds([]);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to resolve breaches");
+    }
+  };
 
   if (isLoading) {
     return (
@@ -43,6 +79,23 @@ export default function SlaBreaches() {
           </SelectContent>
         </Select>
         <span className="text-sm text-muted-foreground">{events.length} active breaches</span>
+        <div className="ml-auto flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void handleAcknowledgeSelected()}
+            disabled={selectedIds.length === 0 || resolveSlaEvents.isPending}
+          >
+            Acknowledge Selected
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => void handleResolveFiltered()}
+            disabled={events.length === 0 || resolveSlaEvents.isPending}
+          >
+            Resolve Filtered
+          </Button>
+        </div>
       </div>
 
       <div className="space-y-2">
@@ -62,7 +115,13 @@ export default function SlaBreaches() {
           return (
             <Card key={ev.id} className="hover:shadow-sm transition-shadow">
               <CardContent className="py-4 flex items-center justify-between">
-                <div className="space-y-1">
+                <div className="space-y-1 flex items-start gap-3">
+                  <Checkbox
+                    checked={selectedIds.includes(ev.id)}
+                    onCheckedChange={(checked) => toggleSelection(ev.id, checked === true)}
+                    className="mt-1"
+                  />
+                  <div>
                   <div className="flex items-center gap-2">
                     <Badge variant={ev.severity === "breach" ? "destructive" : "secondary"} className="text-xs">
                       {ev.severity}
@@ -78,6 +137,7 @@ export default function SlaBreaches() {
                     {details.threshold_hours && <span>Threshold: {details.threshold_hours}h</span>}
                     {details.threshold_days && <span>Threshold: {details.threshold_days}d</span>}
                   </div>
+                  </div>
                 </div>
                 <Button variant="ghost" size="sm" asChild>
                   <Link to={`/pipeline/opportunities/${ev.entity_id}`}>
@@ -89,6 +149,18 @@ export default function SlaBreaches() {
           );
         })}
       </div>
+
+      {events.length > 0 && (
+        <div className="mt-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSelectedIds(allSelected ? [] : events.map((event) => event.id))}
+          >
+            {allSelected ? "Clear Selection" : "Select All"}
+          </Button>
+        </div>
+      )}
     </>
   );
 }

@@ -58,6 +58,31 @@ export function useNotifications() {
   });
 }
 
+export function useResolveSlaEvents() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: { ids?: string[]; sla_type?: string }) => {
+      let query = supabase
+        .from("sla_events")
+        .update({ resolved_at: new Date().toISOString() })
+        .is("resolved_at", null);
+
+      if (params.ids && params.ids.length > 0) {
+        query = query.in("id", params.ids);
+      } else if (params.sla_type) {
+        query = query.eq("sla_type", params.sla_type);
+      }
+
+      const { error } = await query;
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["sla-events"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+  });
+}
+
 export function useMarkNotificationRead() {
   const qc = useQueryClient();
   return useMutation({

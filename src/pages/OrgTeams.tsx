@@ -8,6 +8,16 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   useActiveOrg, useTeams, useTeamMembers, useOrgMembers,
   useCreateTeam, useDeleteTeam, useAddTeamMember, useRemoveTeamMember,
 } from "@/hooks/useOrg";
@@ -24,8 +34,17 @@ function TeamCard({ team, orgId }: { team: any; orgId: string }) {
   const removeMember = useRemoveTeamMember();
 
   const [addOpen, setAddOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState("");
   const [isManager, setIsManager] = useState(false);
+
+  const getDisplayName = (member: any) =>
+    member.profiles?.full_name?.trim() || "Unnamed user";
+
+  const getSecondaryLine = (member: any) =>
+    typeof member.email === "string" && member.email.trim().length > 0
+      ? member.email
+      : "Email unavailable";
 
   const availableUsers = orgMembers.filter(
     (om: any) => !members.some((m: any) => m.user_id === om.user_id)
@@ -44,9 +63,7 @@ function TeamCard({ team, orgId }: { team: any; orgId: string }) {
             <Button size="sm" variant="outline" onClick={() => setAddOpen(true)}>
               <Plus className="h-3 w-3 mr-1" /> Member
             </Button>
-            <Button size="icon" variant="ghost" onClick={() => {
-              if (confirm("Delete team?")) deleteTeam.mutate({ id: team.id, org_id: orgId });
-            }}>
+            <Button size="icon" variant="ghost" onClick={() => setDeleteOpen(true)}>
               <Trash2 className="h-4 w-4 text-destructive" />
             </Button>
           </div>
@@ -61,7 +78,10 @@ function TeamCard({ team, orgId }: { team: any; orgId: string }) {
             {members.map((m: any) => (
               <div key={m.user_id} className="flex items-center justify-between py-1">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm">{m.profiles?.full_name || m.user_id}</span>
+                  <div>
+                    <p className="text-sm">{getDisplayName(m)}</p>
+                    <p className="text-xs text-muted-foreground">{getSecondaryLine(m)}</p>
+                  </div>
                   {m.is_team_manager && <Badge variant="secondary" className="text-[10px]">Manager</Badge>}
                 </div>
                 <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => {
@@ -85,7 +105,7 @@ function TeamCard({ team, orgId }: { team: any; orgId: string }) {
                   <SelectContent>
                     {availableUsers.map((u: any) => (
                       <SelectItem key={u.user_id} value={u.user_id}>
-                        {u.profiles?.full_name || u.user_id}
+                        {u.profiles?.full_name?.trim() || "Unnamed user"}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -110,6 +130,29 @@ function TeamCard({ team, orgId }: { team: any; orgId: string }) {
             </div>
           </DialogContent>
         </Dialog>
+
+        <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete team {team.name}?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This removes the team and its member assignments.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => {
+                  deleteTeam.mutate({ id: team.id, org_id: orgId });
+                  setDeleteOpen(false);
+                }}
+              >
+                Delete Team
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </CardContent>
     </Card>
   );
