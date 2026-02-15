@@ -55,6 +55,7 @@ export function useMoveOpportunityStage() {
       to_stage_id: string;
       expected_version: number;
     }) => callEdge("move-opportunity-stage", params),
+    throwOnError: false,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["opportunities"] });
       qc.invalidateQueries({ queryKey: ["opportunity-stats"] });
