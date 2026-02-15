@@ -56,7 +56,8 @@ export async function callEdge<T>(
 
     const message = getErrorMessage(payload);
     const error = new Error(`${response.status}: ${message}`);
-    (error as Error & { status?: number }).status = response.status;
+    (error as Error & { status?: number; data?: unknown }).status = response.status;
+    (error as Error & { data?: unknown }).data = payload;
     throw error;
   }
 
