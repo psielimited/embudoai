@@ -2,6 +2,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { invalidateActiveOrgCache } from "@/lib/auth";
 import { callEdge } from "@/lib/edge";
+import type { Database } from "@/integrations/supabase/types";
+
+export type OrgSettingsRow = Database["public"]["Tables"]["org_settings"]["Row"];
 
 export function useOrgs() {
   return useQuery({
@@ -119,6 +122,117 @@ export function useSwitchOrg() {
     onSuccess: () => {
       // Invalidate everything to reload with new org context
       qc.invalidateQueries();
+    },
+  });
+}
+
+export function useOrgSettings(orgId?: string) {
+  return useQuery({
+    queryKey: ["org-settings", orgId],
+    enabled: !!orgId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("org_settings")
+        .select("*")
+        .eq("org_id", orgId!)
+        .maybeSingle();
+      if (error) throw error;
+
+      if (data) return data as OrgSettingsRow;
+
+      return {
+        id: "",
+        org_id: orgId!,
+        timezone: "UTC",
+        sla_first_response_minutes: 15,
+        sla_next_response_minutes: 60,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      } as OrgSettingsRow;
+    },
+  });
+}
+
+export function useUpdateOrg() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: { org_id: string; name: string }) => {
+      const { data, error } = await supabase
+        .from("orgs")
+        .update({ name: params.name })
+        .eq("id", params.org_id)
+        .select("*")
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onMutate: async (params) => {
+      await qc.cancelQueries({ queryKey: ["orgs"] });
+      const previous = qc.getQueryData<Array<{ id: string; name: string }>>(["orgs"]);
+      qc.setQueryData<Array<{ id: string; name: string }>>(["orgs"], (current = []) =>
+        current.map((org) => (org.id === params.org_id ? { ...org, name: params.name } : org)),
+      );
+      return { previous };
+    },
+    onError: (_error, _params, context) => {
+      if (context?.previous) {
+        qc.setQueryData(["orgs"], context.previous);
+      }
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["orgs"] });
+    },
+  });
+}
+
+export function useUpsertOrgSettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: {
+      org_id: string;
+      timezone: string;
+      sla_first_response_minutes: number;
+      sla_next_response_minutes: number;
+    }) => {
+      const { data, error } = await supabase
+        .from("org_settings")
+        .upsert(
+          {
+            org_id: params.org_id,
+            timezone: params.timezone,
+            sla_first_response_minutes: params.sla_first_response_minutes,
+            sla_next_response_minutes: params.sla_next_response_minutes,
+          },
+          { onConflict: "org_id" },
+        )
+        .select("*")
+        .single();
+      if (error) throw error;
+      return data as OrgSettingsRow;
+    },
+    onMutate: async (params) => {
+      await qc.cancelQueries({ queryKey: ["org-settings", params.org_id] });
+      const previous = qc.getQueryData<OrgSettingsRow>(["org-settings", params.org_id]);
+      qc.setQueryData<OrgSettingsRow>(["org-settings", params.org_id], (current) => ({
+        ...(current ?? {
+          id: "",
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }),
+        org_id: params.org_id,
+        timezone: params.timezone,
+        sla_first_response_minutes: params.sla_first_response_minutes,
+        sla_next_response_minutes: params.sla_next_response_minutes,
+      } as OrgSettingsRow));
+      return { previous };
+    },
+    onError: (_error, params, context) => {
+      if (context?.previous) {
+        qc.setQueryData(["org-settings", params.org_id], context.previous);
+      }
+    },
+    onSettled: (_result, _error, params) => {
+      qc.invalidateQueries({ queryKey: ["org-settings", params.org_id] });
     },
   });
 }

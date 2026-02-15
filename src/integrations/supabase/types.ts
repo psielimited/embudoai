@@ -1072,6 +1072,44 @@ export type Database = {
         }
         Relationships: []
       }
+      org_settings: {
+        Row: {
+          created_at: string
+          id: string
+          org_id: string
+          sla_first_response_minutes: number
+          sla_next_response_minutes: number
+          timezone: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          org_id: string
+          sla_first_response_minutes?: number
+          sla_next_response_minutes?: number
+          timezone?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          org_id?: string
+          sla_first_response_minutes?: number
+          sla_next_response_minutes?: number
+          timezone?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_settings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       outbound_jobs: {
         Row: {
           attempts: number

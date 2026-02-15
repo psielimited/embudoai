@@ -1,35 +1,140 @@
+import { useEffect } from "react";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import { Loader2, Building2, Users, Shield, Save } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useOrgs, useActiveOrg, useOrgMembers, useTeams } from "@/hooks/useOrg";
-import { Loader2, Building2, Users, Shield } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import {
+  useOrgs,
+  useActiveOrg,
+  useOrgMembers,
+  useTeams,
+  useOrgSettings,
+  useUpdateOrg,
+  useUpsertOrgSettings,
+} from "@/hooks/useOrg";
+
+const orgSettingsSchema = z
+  .object({
+    name: z.string().trim().min(2, "Organization name is required"),
+    timezone: z.string().trim().min(1, "Timezone is required"),
+    sla_first_response_minutes: z.coerce
+      .number()
+      .int("Must be a whole number")
+      .min(1, "Must be at least 1 minute"),
+    sla_next_response_minutes: z.coerce
+      .number()
+      .int("Must be a whole number")
+      .min(1, "Must be at least 1 minute"),
+  })
+  .refine((value) => value.sla_next_response_minutes >= value.sla_first_response_minutes, {
+    path: ["sla_next_response_minutes"],
+    message: "Next response must be >= first response threshold",
+  });
+
+type OrgSettingsForm = z.infer<typeof orgSettingsSchema>;
 
 export default function OrgSettings() {
   const { data: activeOrgId } = useActiveOrg();
   const { data: orgs = [], isLoading } = useOrgs();
   const { data: members = [] } = useOrgMembers(activeOrgId ?? undefined);
   const { data: teams = [] } = useTeams(activeOrgId ?? undefined);
+  const { data: orgSettings } = useOrgSettings(activeOrgId ?? undefined);
+  const updateOrg = useUpdateOrg();
+  const upsertOrgSettings = useUpsertOrgSettings();
 
-  const activeOrg = orgs.find(o => o.id === activeOrgId);
+  const activeOrg = orgs.find((org) => org.id === activeOrgId);
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors, isValid, isDirty },
+  } = useForm<OrgSettingsForm>({
+    resolver: zodResolver(orgSettingsSchema),
+    mode: "onChange",
+    defaultValues: {
+      name: "",
+      timezone: "UTC",
+      sla_first_response_minutes: 15,
+      sla_next_response_minutes: 60,
+    },
+  });
+
+  useEffect(() => {
+    if (!activeOrg || !orgSettings) return;
+    reset({
+      name: activeOrg.name,
+      timezone: orgSettings.timezone ?? "UTC",
+      sla_first_response_minutes: orgSettings.sla_first_response_minutes ?? 15,
+      sla_next_response_minutes: orgSettings.sla_next_response_minutes ?? 60,
+    });
+  }, [activeOrg, orgSettings, reset]);
+
+  const onSave = async (values: OrgSettingsForm) => {
+    if (!activeOrgId || !activeOrg) return;
+
+    try {
+      const orgNameChanged = values.name.trim() !== activeOrg.name;
+
+      const settingsChanged =
+        values.timezone !== (orgSettings?.timezone ?? "UTC") ||
+        values.sla_first_response_minutes !== (orgSettings?.sla_first_response_minutes ?? 15) ||
+        values.sla_next_response_minutes !== (orgSettings?.sla_next_response_minutes ?? 60);
+
+      if (!orgNameChanged && !settingsChanged) {
+        toast.info("No changes to save");
+        return;
+      }
+
+      await Promise.all([
+        orgNameChanged
+          ? updateOrg.mutateAsync({ org_id: activeOrgId, name: values.name.trim() })
+          : Promise.resolve(),
+        settingsChanged
+          ? upsertOrgSettings.mutateAsync({
+              org_id: activeOrgId,
+              timezone: values.timezone.trim(),
+              sla_first_response_minutes: values.sla_first_response_minutes,
+              sla_next_response_minutes: values.sla_next_response_minutes,
+            })
+          : Promise.resolve(),
+      ]);
+
+      toast.success("Organization settings saved");
+      reset(values);
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to save organization settings");
+    }
+  };
 
   if (isLoading) {
-    return <div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
   }
 
   return (
     <>
-      <PageHeader title="Organization Settings" description="View and manage your organization" />
+      <PageHeader title="Organization Settings" description="Manage org identity, timezone, and SLA defaults" />
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-3 mb-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Organization</CardTitle>
             <Building2 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{activeOrg?.name || "—"}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              ID: {activeOrgId?.slice(0, 8)}...
-            </p>
+            <div className="text-2xl font-bold">{activeOrg?.name || "-"}</div>
+            <p className="text-xs text-muted-foreground mt-1">ID: {activeOrgId?.slice(0, 8)}...</p>
           </CardContent>
         </Card>
 
@@ -55,6 +160,54 @@ export default function OrgSettings() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Edit Settings</CardTitle>
+          <CardDescription>Changes apply organization-wide and are used by SLA monitoring.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit(onSave)} className="space-y-4 max-w-2xl">
+            <div className="space-y-1">
+              <Label htmlFor="org-name">Organization Name</Label>
+              <Input id="org-name" {...register("name")} />
+              {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="timezone">Timezone</Label>
+              <Input id="timezone" {...register("timezone")} placeholder="UTC or America/New_York" />
+              {errors.timezone && <p className="text-xs text-destructive">{errors.timezone.message}</p>}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <Label htmlFor="sla-first">Default First Response SLA (minutes)</Label>
+                <Input id="sla-first" type="number" min={1} {...register("sla_first_response_minutes")} />
+                {errors.sla_first_response_minutes && (
+                  <p className="text-xs text-destructive">{errors.sla_first_response_minutes.message}</p>
+                )}
+              </div>
+
+              <div className="space-y-1">
+                <Label htmlFor="sla-next">Default Next Response SLA (minutes)</Label>
+                <Input id="sla-next" type="number" min={1} {...register("sla_next_response_minutes")} />
+                {errors.sla_next_response_minutes && (
+                  <p className="text-xs text-destructive">{errors.sla_next_response_minutes.message}</p>
+                )}
+              </div>
+            </div>
+
+            <Button
+              type="submit"
+              disabled={!isValid || !isDirty || updateOrg.isPending || upsertOrgSettings.isPending}
+            >
+              <Save className="h-4 w-4 mr-2" />
+              {updateOrg.isPending || upsertOrgSettings.isPending ? "Saving..." : "Save Settings"}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </>
   );
 }
