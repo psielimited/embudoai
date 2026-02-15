@@ -35,7 +35,7 @@ export default function PipelineBoard() {
   }, []);
 
   const handleDrop = useCallback(
-    async (e: React.DragEvent, toStageId: string) => {
+    (e: React.DragEvent, toStageId: string) => {
       e.preventDefault();
       if (!draggedOppId) return;
 
@@ -45,26 +45,31 @@ export default function PipelineBoard() {
         return;
       }
 
-      try {
-        await moveStage.mutateAsync({
+      moveStage.mutate(
+        {
           opportunity_id: opp.id,
           to_stage_id: toStageId,
           expected_version: opp.version,
-        });
-        toast.success("Stage updated");
-      } catch (err: any) {
-        if (err.status === 409 && err.data?.error_code === "STAGE_GATE_FAILED") {
-          setGateFailure({
-            missingFields: err.data.missing_fields || [],
-            missingActivities: err.data.missing_activities || [],
-            opportunityId: opp.id,
-          });
-        } else if (err.status === 409) {
-          toast.error("Version conflict — board refreshed");
-        } else {
-          toast.error(err.message || "Failed to move");
+        },
+        {
+          onSuccess: () => {
+            toast.success("Stage updated");
+          },
+          onError: (err: any) => {
+            if (err.status === 409 && err.data?.error_code === "STAGE_GATE_FAILED") {
+              setGateFailure({
+                missingFields: err.data.missing_fields || [],
+                missingActivities: err.data.missing_activities || [],
+                opportunityId: opp.id,
+              });
+            } else if (err.status === 409) {
+              toast.error("Version conflict — board refreshed");
+            } else {
+              toast.error(err.message || "Failed to move");
+            }
+          },
         }
-      }
+      );
       setDraggedOppId(null);
     },
     [draggedOppId, opportunities, moveStage]
