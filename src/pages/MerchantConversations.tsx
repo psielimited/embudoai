@@ -1,12 +1,13 @@
 import { useNavigate, useParams } from "react-router-dom";
 import { format } from "date-fns";
-import { MessageSquare } from "lucide-react";
+import { AlertTriangle, MessageSquare } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { DataTable } from "@/components/DataTable";
 import { StatusBadge } from "@/components/StatusBadge";
 import { EmptyState } from "@/components/EmptyState";
 import { useMerchant } from "@/hooks/useMerchants";
 import { useConversations } from "@/hooks/useConversations";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Select,
   SelectContent,
@@ -102,6 +103,14 @@ export default function MerchantConversations() {
           </Select>
         }
       />
+
+      {merchant?.status === "inactive" && (
+        <Alert variant="destructive" className="mb-6">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Inactive merchant</AlertTitle>
+          <AlertDescription>This merchant is archived and is hidden from active lists by default.</AlertDescription>
+        </Alert>
+      )}
       
       <DataTable
         columns={columns}
