@@ -1,6 +1,6 @@
 import {
   Store, MessageSquare, LayoutDashboard, Kanban, Zap,
-  AlertTriangle, FileSpreadsheet, Building2, Users, Shield,
+  AlertTriangle, FileSpreadsheet, Building2, Users, Shield, SlidersHorizontal,
   UserPlus, Contact2, Upload,
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
@@ -22,6 +22,7 @@ const crmNav = [
 
 const pipelineNav = [
   { title: "Pipeline", url: "/pipeline", icon: Kanban },
+  { title: "Pipeline Settings", url: "/pipeline/settings", icon: SlidersHorizontal },
   { title: "Automations", url: "/automation", icon: Zap },
 ];
 

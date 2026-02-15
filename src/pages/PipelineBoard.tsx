@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
-import { Plus, Loader2 } from "lucide-react";
+import { Plus, Loader2, SlidersHorizontal } from "lucide-react";
 import { usePipeline } from "@/hooks/usePipeline";
 import { useOpportunities, useMoveOpportunityStage } from "@/hooks/useOpportunities";
 import { isEdgeError } from "@/lib/edge";
@@ -100,7 +100,15 @@ export default function PipelineBoard() {
 
   return (
     <>
-      <PageHeader title={pipeline.name} description="Drag opportunities between stages" />
+      <PageHeader
+        title={pipeline.name}
+        description="Drag opportunities between stages"
+        actions={
+          <Button variant="outline" size="sm" onClick={() => navigate("/pipeline/settings")}>
+            <SlidersHorizontal className="h-4 w-4 mr-1" /> Configure Stages
+          </Button>
+        }
+      />
 
       <div className="flex gap-4 overflow-x-auto pb-4" style={{ minHeight: "calc(100vh - 200px)" }}>
         {stages.map((stage) => {

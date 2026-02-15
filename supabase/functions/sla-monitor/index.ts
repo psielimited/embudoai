@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
       // 1. NO_ACTIVITY
       const cutoff = new Date(Date.now() - NO_ACTIVITY_HOURS * 3600000).toISOString();
       const { data: openOpps } = await client
-        .from("opportunities").select("id, owner_user_id, name, updated_at")
+        .from("opportunities").select("id, owner_user_id, name, updated_at, stage_id")
         .eq("status", "open").eq("org_id", orgId);
 
       if (openOpps) {
@@ -85,6 +85,12 @@ Deno.serve(async (req) => {
       // 3. TIME_IN_STAGE
       const { data: stages } = await client.from("stages").select("id, name").eq("org_id", orgId);
       const stageMap = new Map((stages || []).map(s => [s.id, s.name]));
+      const { data: stageGates } = await client
+        .from("stage_gates")
+        .select("stage_id, max_days_in_stage")
+        .eq("org_id", orgId)
+        .not("max_days_in_stage", "is", null);
+      const stageThresholdMap = new Map((stageGates || []).map((g) => [g.stage_id, g.max_days_in_stage as number]));
 
       if (openOpps) {
         for (const opp of openOpps) {
@@ -93,8 +99,9 @@ Deno.serve(async (req) => {
             .order("created_at", { ascending: false }).limit(1);
           const enteredAt = last?.[0]?.created_at || opp.updated_at;
           const toStageId = (last?.[0]?.diff as any)?.to_stage_id;
-          const stageName = toStageId ? stageMap.get(toStageId) : null;
-          const threshold = DEFAULT_TIME_IN_STAGE_DAYS;
+          const currentStageId = toStageId || opp.stage_id;
+          const stageName = currentStageId ? stageMap.get(currentStageId) : null;
+          const threshold = (currentStageId ? stageThresholdMap.get(currentStageId) : null) ?? DEFAULT_TIME_IN_STAGE_DAYS;
           if (Date.now() - new Date(enteredAt).getTime() > threshold * 86400000) {
             const created = await upsertSla(client, opp.id, "TIME_IN_STAGE", "warn",
               { stage_name: stageName || "unknown", entered_at: enteredAt, threshold_days: threshold }, orgId);

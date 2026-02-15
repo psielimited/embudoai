@@ -13,6 +13,7 @@ const MerchantList = React.lazy(() => import("@/pages/MerchantList"));
 const MerchantConversations = React.lazy(() => import("@/pages/MerchantConversations"));
 const ConversationDetail = React.lazy(() => import("@/pages/ConversationDetail"));
 const PipelineBoard = React.lazy(() => import("@/pages/PipelineBoard"));
+const PipelineSettings = React.lazy(() => import("@/pages/PipelineSettings"));
 const OpportunityDetail = React.lazy(() => import("@/pages/OpportunityDetail"));
 const AutomationRules = React.lazy(() => import("@/pages/AutomationRules"));
 const SlaBreaches = React.lazy(() => import("@/pages/SlaBreaches"));
@@ -60,6 +61,7 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/" element={<ProtectedDashboard><Dashboard /></ProtectedDashboard>} />
             <Route path="/pipeline" element={<ProtectedDashboard><PipelineBoard /></ProtectedDashboard>} />
+            <Route path="/pipeline/settings" element={<ProtectedDashboard><PipelineSettings /></ProtectedDashboard>} />
             <Route path="/pipeline/opportunities/:opportunityId" element={<ProtectedDashboard><OpportunityDetail /></ProtectedDashboard>} />
             <Route path="/automation" element={<ProtectedDashboard><AutomationRules /></ProtectedDashboard>} />
             <Route path="/dashboard/sla" element={<ProtectedDashboard><SlaBreaches /></ProtectedDashboard>} />

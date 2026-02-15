@@ -1305,6 +1305,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          max_days_in_stage: number | null
           org_id: string
           required_activity_types: string[]
           required_fields: string[]
@@ -1313,6 +1314,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          max_days_in_stage?: number | null
           org_id: string
           required_activity_types?: string[]
           required_fields?: string[]
@@ -1321,6 +1323,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          max_days_in_stage?: number | null
           org_id?: string
           required_activity_types?: string[]
           required_fields?: string[]
