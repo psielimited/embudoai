@@ -94,7 +94,7 @@ Deno.serve(async (req) => {
     const merchantName = merchant?.name ?? "the business";
 
     // 3. Load last 20 messages
-    const { data: messages = [] } = await supabase
+    const { data: messages } = await supabase
       .from("messages")
       .select("id, sender, content, created_at")
       .eq("conversation_id", conv.id)
