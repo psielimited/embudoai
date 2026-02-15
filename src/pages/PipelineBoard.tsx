@@ -52,21 +52,26 @@ export default function PipelineBoard() {
           expected_version: opp.version,
         },
         {
-          onSuccess: () => {
+          onSuccess: (result: any) => {
+            if (result?.__error) {
+              const { status, data } = result;
+              if (status === 409 && data?.error_code === "STAGE_GATE_FAILED") {
+                setGateFailure({
+                  missingFields: data.missing_fields || [],
+                  missingActivities: data.missing_activities || [],
+                  opportunityId: opp.id,
+                });
+              } else if (status === 409) {
+                toast.error("Version conflict — board refreshed");
+              } else {
+                toast.error(result.message || "Failed to move");
+              }
+              return;
+            }
             toast.success("Stage updated");
           },
           onError: (err: any) => {
-            if (err.status === 409 && err.data?.error_code === "STAGE_GATE_FAILED") {
-              setGateFailure({
-                missingFields: err.data.missing_fields || [],
-                missingActivities: err.data.missing_activities || [],
-                opportunityId: opp.id,
-              });
-            } else if (err.status === 409) {
-              toast.error("Version conflict — board refreshed");
-            } else {
-              toast.error(err.message || "Failed to move");
-            }
+            toast.error(err.message || "Failed to move");
           },
         }
       );
