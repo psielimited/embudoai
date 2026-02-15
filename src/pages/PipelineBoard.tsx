@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Plus, Loader2 } from "lucide-react";
 import { usePipeline } from "@/hooks/usePipeline";
 import { useOpportunities, useMoveOpportunityStage } from "@/hooks/useOpportunities";
+import { isEdgeError } from "@/lib/edge";
 import { OpportunityCard } from "@/components/OpportunityCard";
 import { CreateOpportunityDialog } from "@/components/CreateOpportunityDialog";
 import { GateFailureModal } from "@/components/GateFailureModal";
@@ -52,13 +53,14 @@ export default function PipelineBoard() {
           expected_version: opp.version,
         },
         {
-          onSuccess: (result: any) => {
-            if (result?.__error) {
+          onSuccess: (result) => {
+            if (isEdgeError(result)) {
               const { status, data } = result;
-              if (status === 409 && data?.error_code === "STAGE_GATE_FAILED") {
+              const d = data as Record<string, any> | undefined;
+              if (status === 409 && d?.error_code === "STAGE_GATE_FAILED") {
                 setGateFailure({
-                  missingFields: data.missing_fields || [],
-                  missingActivities: data.missing_activities || [],
+                  missingFields: d.missing_fields || [],
+                  missingActivities: d.missing_activities || [],
                   opportunityId: opp.id,
                 });
               } else if (status === 409) {
