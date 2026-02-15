@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { getActiveOrgId, getUserOrThrow } from "@/lib/auth";
-import { callEdge } from "@/lib/edge";
+import { callEdge, isEdgeError } from "@/lib/edge";
 import { useActiveOrg } from "@/hooks/useOrg";
 
 export function useOpportunities(pipelineId?: string) {
@@ -54,19 +54,9 @@ export function useMoveOpportunityStage() {
       opportunity_id: string;
       to_stage_id: string;
       expected_version: number;
-    }) => {
-      try {
-        return await callEdge<Record<string, unknown>>("move-opportunity-stage", params);
-      } catch (err: any) {
-        // Return error payload as resolved value so it doesn't trigger error reporters
-        if (err.status && err.data) {
-          return { __error: true, status: err.status, data: err.data, message: err.message } as any;
-        }
-        throw err;
-      }
-    },
-    onSuccess: (result: any) => {
-      if (result?.__error) return; // handled by caller
+    }) => callEdge<Record<string, unknown>>("move-opportunity-stage", params, { noThrow: true }),
+    onSuccess: (result) => {
+      if (isEdgeError(result)) return;
       qc.invalidateQueries({ queryKey: ["opportunities"] });
       qc.invalidateQueries({ queryKey: ["opportunity-stats"] });
     },

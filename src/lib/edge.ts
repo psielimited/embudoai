@@ -16,10 +16,21 @@ function getErrorMessage(payload: unknown): string {
   return "Request failed";
 }
 
+export type EdgeError = {
+  __edgeError: true;
+  status: number;
+  data: unknown;
+  message: string;
+};
+
+export function isEdgeError(v: unknown): v is EdgeError {
+  return typeof v === "object" && v !== null && (v as any).__edgeError === true;
+}
+
 export async function callEdge<T>(
   fnName: string,
   body: unknown,
-  opts?: { signal?: AbortSignal },
+  opts?: { signal?: AbortSignal; noThrow?: boolean },
 ): Promise<T> {
   const {
     data: { session },
@@ -55,6 +66,11 @@ export async function callEdge<T>(
     }
 
     const message = getErrorMessage(payload);
+
+    if (opts?.noThrow) {
+      return { __edgeError: true, status: response.status, data: payload, message } as unknown as T;
+    }
+
     const error = new Error(`${response.status}: ${message}`);
     (error as Error & { status?: number; data?: unknown }).status = response.status;
     (error as Error & { data?: unknown }).data = payload;
