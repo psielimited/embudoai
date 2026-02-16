@@ -210,7 +210,7 @@ export function useUpsertStageGate() {
         .limit(1);
       if (existingError) throw existingError;
 
-      const payload = {
+      const payload: Record<string, any> = {
         stage_id: params.stageId,
         org_id: orgId,
         required_fields: params.requiredFields,
@@ -221,7 +221,7 @@ export function useUpsertStageGate() {
       if ((existing ?? []).length > 0) {
         const { data, error } = await supabase
           .from("stage_gates")
-          .update(payload)
+          .update(payload as any)
           .eq("id", existing![0].id)
           .select("*")
           .single();
@@ -229,7 +229,7 @@ export function useUpsertStageGate() {
         return data as StageGateRow;
       }
 
-      const { data, error } = await supabase.from("stage_gates").insert(payload).select("*").single();
+      const { data, error } = await supabase.from("stage_gates").insert(payload as any).select("*").single();
       if (error) throw error;
       return data as StageGateRow;
     },

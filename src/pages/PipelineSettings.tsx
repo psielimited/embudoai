@@ -72,7 +72,7 @@ export default function PipelineSettings() {
         name: stage.name,
         requiredFields: toCsv(gate?.required_fields ?? []),
         requiredActivityTypes: toCsv(gate?.required_activity_types ?? []),
-        maxDaysInStage: gate?.max_days_in_stage ? String(gate.max_days_in_stage) : "",
+        maxDaysInStage: (gate as any)?.max_days_in_stage ? String((gate as any).max_days_in_stage) : "",
       };
     }
     setStageEdits(next);
@@ -219,7 +219,7 @@ export default function PipelineSettings() {
                               name: stage.name,
                               requiredFields: toCsv(gate?.required_fields ?? []),
                               requiredActivityTypes: toCsv(gate?.required_activity_types ?? []),
-                              maxDaysInStage: gate?.max_days_in_stage ? String(gate.max_days_in_stage) : "",
+                              maxDaysInStage: (gate as any)?.max_days_in_stage ? String((gate as any).max_days_in_stage) : "",
                             }),
                             name: event.target.value,
                           },
