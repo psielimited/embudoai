@@ -8,6 +8,12 @@ export function PublicHeader() {
           Embudex
         </Link>
         <nav className="flex items-center gap-4 text-sm">
+          <Link to="/" className="text-muted-foreground transition-colors hover:text-foreground">
+            Home
+          </Link>
+          <Link to="/pricing" className="text-muted-foreground transition-colors hover:text-foreground">
+            Pricing
+          </Link>
           <Link to="/dashboard" className="text-muted-foreground transition-colors hover:text-foreground">
             Dashboard
           </Link>
