@@ -11,6 +11,9 @@ export function PublicFooter() {
           <Link to="/privacy" className="transition-colors hover:text-foreground">
             Privacy
           </Link>
+          <Link to="/data-deletion" className="transition-colors hover:text-foreground">
+            Data Deletion
+          </Link>
           <a href="#" className="transition-colors hover:text-foreground">
             Terms
           </a>
