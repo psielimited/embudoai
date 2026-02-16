@@ -199,7 +199,15 @@ Deno.serve(async (req) => {
         });
       } else {
         // WhatsApp API error
-        const errorMsg = JSON.stringify(waBody?.error ?? waBody).slice(0, 500);
+        const metaError = waBody?.error ?? waBody;
+        const metaCode =
+          typeof metaError?.code === "number" ? metaError.code : undefined;
+        const metaDetails =
+          metaError?.error_data?.details ??
+          metaError?.message ??
+          "Unknown provider error";
+        const errorMsg = JSON.stringify(metaError).slice(0, 500);
+        const recipientNotAllowed = metaCode === 131030;
         console.error("WhatsApp API error:", errorMsg);
 
         await supabase
@@ -225,7 +233,18 @@ Deno.serve(async (req) => {
           })
           .eq("id", jobId);
 
-        return json({ ok: false, error: errorMsg, send_status: "failed" }, 502);
+        return json(
+          {
+            ok: false,
+            error: recipientNotAllowed
+              ? "Recipient phone number not in allowed list. Add the phone number in your Meta app test recipient list and retry."
+              : errorMsg,
+            meta_code: metaCode,
+            meta_details: metaDetails,
+            send_status: "failed",
+          },
+          recipientNotAllowed ? 422 : 502,
+        );
       }
     } catch (fetchErr) {
       const errorMsg = String(fetchErr).slice(0, 500);
