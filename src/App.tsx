@@ -11,6 +11,7 @@ import { PageSkeleton } from "@/components/PageSkeleton";
 
 const LandingPage = React.lazy(() => import("@/pages/LandingPage"));
 const PricingPage = React.lazy(() => import("@/pages/PricingPage"));
+const PrivacyPolicy = React.lazy(() => import("@/pages/PrivacyPolicy"));
 const Dashboard = React.lazy(() => import("@/pages/Dashboard"));
 const MerchantList = React.lazy(() => import("@/pages/MerchantList"));
 const MerchantConversations = React.lazy(() => import("@/pages/MerchantConversations"));
@@ -64,6 +65,7 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/" element={<PublicLayout><LandingPage /></PublicLayout>} />
             <Route path="/pricing" element={<PublicLayout><PricingPage /></PublicLayout>} />
+            <Route path="/privacy" element={<PublicLayout><PrivacyPolicy /></PublicLayout>} />
             <Route path="/dashboard" element={<ProtectedDashboard><Dashboard /></ProtectedDashboard>} />
             <Route path="/pipeline" element={<ProtectedDashboard><PipelineBoard /></ProtectedDashboard>} />
             <Route path="/pipeline/settings" element={<ProtectedDashboard><PipelineSettings /></ProtectedDashboard>} />
