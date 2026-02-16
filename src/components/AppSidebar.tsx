@@ -85,7 +85,7 @@ export function AppSidebar() {
             <MessageSquare className="h-4 w-4 text-primary-foreground" />
           </div>
           <div>
-            <h1 className="font-semibold text-sidebar-foreground">EmbudoAI</h1>
+            <h1 className="font-semibold text-sidebar-foreground">Embudex</h1>
             <p className="text-xs text-muted-foreground">CRM Dashboard</p>
           </div>
         </div>
