@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { useConversationUnreadCounts } from "@/hooks/useConversations";
 
 const crmNav = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
+  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Conversations", url: "/conversations", icon: MessageSquare },
   { title: "Leads", url: "/leads", icon: UserPlus },
   { title: "Contacts", url: "/contacts", icon: Contact2 },

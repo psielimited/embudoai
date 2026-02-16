@@ -5,9 +5,11 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { DashboardLayout } from "@/layouts/DashboardLayout";
+import { PublicLayout } from "@/layouts/PublicLayout";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { PageSkeleton } from "@/components/PageSkeleton";
 
+const LandingPage = React.lazy(() => import("@/pages/LandingPage"));
 const Dashboard = React.lazy(() => import("@/pages/Dashboard"));
 const MerchantList = React.lazy(() => import("@/pages/MerchantList"));
 const MerchantConversations = React.lazy(() => import("@/pages/MerchantConversations"));
@@ -59,7 +61,8 @@ const App = () => (
         <Suspense fallback={<PageSkeleton />}>
           <Routes>
             <Route path="/login" element={<Login />} />
-            <Route path="/" element={<ProtectedDashboard><Dashboard /></ProtectedDashboard>} />
+            <Route path="/" element={<PublicLayout><LandingPage /></PublicLayout>} />
+            <Route path="/dashboard" element={<ProtectedDashboard><Dashboard /></ProtectedDashboard>} />
             <Route path="/pipeline" element={<ProtectedDashboard><PipelineBoard /></ProtectedDashboard>} />
             <Route path="/pipeline/settings" element={<ProtectedDashboard><PipelineSettings /></ProtectedDashboard>} />
             <Route path="/pipeline/opportunities/:opportunityId" element={<ProtectedDashboard><OpportunityDetail /></ProtectedDashboard>} />
