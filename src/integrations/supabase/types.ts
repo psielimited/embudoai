@@ -826,6 +826,117 @@ export type Database = {
           },
         ]
       }
+      merchant_settings: {
+        Row: {
+          connectivity_inbound_last_checked_at: string | null
+          connectivity_inbound_marker: string | null
+          connectivity_inbound_ok: boolean
+          connectivity_outbound_error: string | null
+          connectivity_outbound_last_checked_at: string | null
+          connectivity_outbound_ok: boolean
+          created_at: string
+          credentials_error: string | null
+          credentials_last_checked_at: string | null
+          credentials_valid: boolean
+          id: string
+          last_outbound_failure_at: string | null
+          last_outbound_success_at: string | null
+          last_webhook_received_at: string | null
+          merchant_id: string
+          onboarding_step: number
+          org_id: string
+          template_approval_state: string | null
+          template_approved_count: number
+          template_pending_count: number
+          template_rejected_count: number
+          token_expires_at: string | null
+          token_last_checked_at: string | null
+          token_valid: boolean
+          updated_at: string
+          validation_results: Json
+          webhook_challenge_error: string | null
+          webhook_challenge_last_checked_at: string | null
+          webhook_challenge_valid: boolean
+        }
+        Insert: {
+          connectivity_inbound_last_checked_at?: string | null
+          connectivity_inbound_marker?: string | null
+          connectivity_inbound_ok?: boolean
+          connectivity_outbound_error?: string | null
+          connectivity_outbound_last_checked_at?: string | null
+          connectivity_outbound_ok?: boolean
+          created_at?: string
+          credentials_error?: string | null
+          credentials_last_checked_at?: string | null
+          credentials_valid?: boolean
+          id?: string
+          last_outbound_failure_at?: string | null
+          last_outbound_success_at?: string | null
+          last_webhook_received_at?: string | null
+          merchant_id: string
+          onboarding_step?: number
+          org_id: string
+          template_approval_state?: string | null
+          template_approved_count?: number
+          template_pending_count?: number
+          template_rejected_count?: number
+          token_expires_at?: string | null
+          token_last_checked_at?: string | null
+          token_valid?: boolean
+          updated_at?: string
+          validation_results?: Json
+          webhook_challenge_error?: string | null
+          webhook_challenge_last_checked_at?: string | null
+          webhook_challenge_valid?: boolean
+        }
+        Update: {
+          connectivity_inbound_last_checked_at?: string | null
+          connectivity_inbound_marker?: string | null
+          connectivity_inbound_ok?: boolean
+          connectivity_outbound_error?: string | null
+          connectivity_outbound_last_checked_at?: string | null
+          connectivity_outbound_ok?: boolean
+          created_at?: string
+          credentials_error?: string | null
+          credentials_last_checked_at?: string | null
+          credentials_valid?: boolean
+          id?: string
+          last_outbound_failure_at?: string | null
+          last_outbound_success_at?: string | null
+          last_webhook_received_at?: string | null
+          merchant_id?: string
+          onboarding_step?: number
+          org_id?: string
+          template_approval_state?: string | null
+          template_approved_count?: number
+          template_pending_count?: number
+          template_rejected_count?: number
+          token_expires_at?: string | null
+          token_last_checked_at?: string | null
+          token_valid?: boolean
+          updated_at?: string
+          validation_results?: Json
+          webhook_challenge_error?: string | null
+          webhook_challenge_last_checked_at?: string | null
+          webhook_challenge_valid?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "merchant_settings_merchant_id_fkey"
+            columns: ["merchant_id"]
+            isOneToOne: true
+            referencedRelation: "merchants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "merchant_settings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       messages: {
         Row: {
           channel: string

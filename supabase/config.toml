@@ -46,3 +46,7 @@ verify_jwt = false
 [functions.outbound-worker]
 verify_jwt = false
 
+
+[functions.merchant-onboarding-check]
+verify_jwt = false
+

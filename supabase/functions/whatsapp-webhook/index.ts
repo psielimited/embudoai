@@ -194,6 +194,17 @@ Deno.serve(async (req) => {
     const orgId = merchant.org_id;
     const results = { messages_processed: 0, statuses_processed: 0, skipped: 0 };
 
+    await supabase
+      .from("merchant_settings")
+      .upsert(
+        {
+          org_id: orgId,
+          merchant_id: merchant.id,
+          last_webhook_received_at: new Date().toISOString(),
+        },
+        { onConflict: "merchant_id" },
+      );
+
     // ── Process inbound messages ────────────────────────────────
     const messages = (value.messages as Array<Record<string, unknown>>) ?? [];
     for (const rawMsg of messages) {

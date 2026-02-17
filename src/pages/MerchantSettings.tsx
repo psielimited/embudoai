@@ -1,14 +1,33 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { AlertTriangle, Eye, EyeOff, Save, Store } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  CircleDot,
+  Eye,
+  EyeOff,
+  Loader2,
+  Save,
+  Store,
+  XCircle,
+} from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
 import { PageHeader } from "@/components/PageHeader";
-import { useDeactivateMerchant, useMerchant, useUpdateMerchant } from "@/hooks/useMerchants";
+import {
+  useDeactivateMerchant,
+  useMerchant,
+  useMerchantSettings,
+  useRunMerchantOnboardingCheck,
+  useUpdateMerchant,
+} from "@/hooks/useMerchants";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,12 +41,43 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 
+function StepStatus({ ok, label }: { ok: boolean | null; label: string }) {
+  if (ok === true) {
+    return (
+      <Badge className="gap-1" variant="secondary">
+        <CheckCircle2 className="h-3.5 w-3.5" /> {label}
+      </Badge>
+    );
+  }
+
+  if (ok === false) {
+    return (
+      <Badge className="gap-1" variant="destructive">
+        <XCircle className="h-3.5 w-3.5" /> {label}
+      </Badge>
+    );
+  }
+
+  return (
+    <Badge className="gap-1" variant="outline">
+      <CircleDot className="h-3.5 w-3.5" /> {label}
+    </Badge>
+  );
+}
+
+function formatTs(ts: string | null | undefined) {
+  if (!ts) return "Not available";
+  return `${new Date(ts).toLocaleString()} (${formatDistanceToNow(new Date(ts), { addSuffix: true })})`;
+}
+
 export default function MerchantSettings() {
   const { merchantId } = useParams<{ merchantId: string }>();
   const navigate = useNavigate();
   const { data: merchant, isLoading } = useMerchant(merchantId!);
+  const { data: merchantSettings } = useMerchantSettings(merchantId);
   const updateMerchant = useUpdateMerchant();
   const deactivateMerchant = useDeactivateMerchant();
+  const onboardingCheck = useRunMerchantOnboardingCheck();
 
   const [phoneNumberId, setPhoneNumberId] = useState("");
   const [verifyToken, setVerifyToken] = useState("");
@@ -35,6 +85,7 @@ export default function MerchantSettings() {
   const [accessToken, setAccessToken] = useState("");
   const [showSecret, setShowSecret] = useState(false);
   const [showToken, setShowToken] = useState(false);
+  const [testRecipient, setTestRecipient] = useState("");
   const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
@@ -46,22 +97,99 @@ export default function MerchantSettings() {
     setInitialized(true);
   }, [merchant, initialized]);
 
-  const handleSave = async () => {
+  const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/whatsapp-webhook`;
+
+  const step = useMemo(() => {
+    if (merchantSettings?.onboarding_step) return merchantSettings.onboarding_step;
+    return 1;
+  }, [merchantSettings]);
+
+  const handleSaveCredentials = async () => {
     if (!merchantId) return;
+
+    await updateMerchant.mutateAsync({
+      id: merchantId,
+      updates: {
+        whatsapp_phone_number_id: phoneNumberId || null,
+        whatsapp_verify_token: verifyToken || null,
+        whatsapp_app_secret: appSecret || null,
+        whatsapp_access_token: accessToken || null,
+      },
+    });
+  };
+
+  const handleValidateCredentials = async () => {
+    if (!merchantId) return;
+
     try {
-      await updateMerchant.mutateAsync({
-        id: merchantId,
-        updates: {
-          whatsapp_phone_number_id: phoneNumberId || null,
-          whatsapp_verify_token: verifyToken || null,
-          whatsapp_app_secret: appSecret || null,
-          whatsapp_access_token: accessToken || null,
-        },
+      await handleSaveCredentials();
+      const result = await onboardingCheck.mutateAsync({
+        merchantId,
+        action: "validate_credentials",
       });
-      toast.success("WhatsApp settings saved");
+
+      if (result.ok) {
+        toast.success("Credentials validated and webhook challenge simulation passed");
+      } else {
+        toast.error(String(result.error ?? "Credential validation failed"));
+      }
     } catch (error) {
       console.error(error);
-      toast.error("Failed to save settings");
+      toast.error("Failed to validate credentials");
+    }
+  };
+
+  const handleConnectivityOutbound = async () => {
+    if (!merchantId) return;
+
+    try {
+      const result = await onboardingCheck.mutateAsync({
+        merchantId,
+        action: "connectivity_test_outbound",
+        payload: { test_to: testRecipient.trim() },
+      });
+
+      if (result.ok) {
+        toast.success("Test outbound message sent");
+      } else {
+        toast.error(String(result.error ?? "Outbound test failed"));
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed outbound connectivity test");
+    }
+  };
+
+  const handleConnectivityInbound = async () => {
+    if (!merchantId) return;
+
+    try {
+      const result = await onboardingCheck.mutateAsync({
+        merchantId,
+        action: "check_inbound_marker",
+        payload: { expected_from: testRecipient.trim() || undefined },
+      });
+
+      if (result.ok) {
+        toast.success("Inbound webhook marker detected");
+      } else {
+        toast.error("No inbound marker found yet");
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed inbound marker check");
+    }
+  };
+
+  const handleRefreshStatus = async () => {
+    if (!merchantId) return;
+
+    try {
+      await onboardingCheck.mutateAsync({ merchantId, action: "refresh_status" });
+      toast.success("Status refreshed");
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to refresh status");
     }
   };
 
@@ -90,8 +218,6 @@ export default function MerchantSettings() {
       toast.error("Failed to archive merchant");
     }
   };
-
-  const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/whatsapp-webhook`;
 
   if (isLoading) {
     return (
@@ -147,101 +273,200 @@ export default function MerchantSettings() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Store className="h-5 w-5" />
-              WhatsApp Cloud API
+              WhatsApp Merchant Onboarding Wizard
             </CardTitle>
-            <CardDescription>Configure the WhatsApp Business API connection for this merchant.</CardDescription>
+            <CardDescription>
+              Guided setup to validate credentials, test connectivity, and monitor operational status.
+            </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label>Webhook URL</Label>
+          <CardContent className="space-y-6">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant={step >= 1 ? "secondary" : "outline"}>Step 1</Badge>
+              <Badge variant={step >= 2 ? "secondary" : "outline"}>Step 2</Badge>
+              <Badge variant={step >= 3 ? "secondary" : "outline"}>Step 3</Badge>
+              <span className="text-xs text-muted-foreground">Current step: {step}</span>
+            </div>
+
+            <Separator />
+
+            <section className="space-y-4">
+              <h3 className="text-sm font-semibold">Step 1 - Credential Entry</h3>
+
+              <div className="space-y-2">
+                <Label>Webhook URL</Label>
+                <div className="flex items-center gap-2">
+                  <Input readOnly value={webhookUrl} className="font-mono text-xs" />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      navigator.clipboard.writeText(webhookUrl);
+                      toast.success("Copied to clipboard");
+                    }}
+                  >
+                    Copy
+                  </Button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="phoneNumberId">phone_number_id</Label>
+                  <Input
+                    id="phoneNumberId"
+                    value={phoneNumberId}
+                    onChange={(event) => setPhoneNumberId(event.target.value)}
+                    placeholder="e.g. 123456789012345"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="verifyToken">verify_token</Label>
+                  <Input
+                    id="verifyToken"
+                    value={verifyToken}
+                    onChange={(event) => setVerifyToken(event.target.value)}
+                    placeholder="Webhook verify token"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="appSecret">app_secret</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="appSecret"
+                      type={showSecret ? "text" : "password"}
+                      value={appSecret}
+                      onChange={(event) => setAppSecret(event.target.value)}
+                      placeholder="Meta app secret"
+                    />
+                    <Button variant="ghost" size="icon" onClick={() => setShowSecret((value) => !value)}>
+                      {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="accessToken">access_token</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="accessToken"
+                      type={showToken ? "text" : "password"}
+                      value={accessToken}
+                      onChange={(event) => setAccessToken(event.target.value)}
+                      placeholder="Meta access token"
+                    />
+                    <Button variant="ghost" size="icon" onClick={() => setShowToken((value) => !value)}>
+                      {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <StepStatus ok={merchantSettings?.credentials_valid ?? null} label="Access token validation" />
+                <StepStatus ok={merchantSettings?.webhook_challenge_valid ?? null} label="Webhook challenge simulation" />
+              </div>
+
+              {(merchantSettings?.credentials_error || merchantSettings?.webhook_challenge_error) && (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>Validation issues</AlertTitle>
+                  <AlertDescription>
+                    {merchantSettings.credentials_error ?? merchantSettings.webhook_challenge_error}
+                  </AlertDescription>
+                </Alert>
+              )}
+
               <div className="flex items-center gap-2">
-                <Input readOnly value={webhookUrl} className="font-mono text-xs" />
+                <Button
+                  onClick={() => void handleValidateCredentials()}
+                  disabled={updateMerchant.isPending || onboardingCheck.isPending}
+                >
+                  {onboardingCheck.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+                  Save and Validate Step 1
+                </Button>
+              </div>
+            </section>
+
+            <Separator />
+
+            <section className="space-y-4">
+              <h3 className="text-sm font-semibold">Step 2 - Connectivity Test</h3>
+
+              <div className="space-y-2">
+                <Label htmlFor="testRecipient">Test recipient phone (E.164)</Label>
+                <Input
+                  id="testRecipient"
+                  value={testRecipient}
+                  onChange={(event) => setTestRecipient(event.target.value)}
+                  placeholder="e.g. 18095551234"
+                />
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <StepStatus ok={merchantSettings?.connectivity_outbound_ok ?? null} label="Outbound test" />
+                <StepStatus ok={merchantSettings?.connectivity_inbound_ok ?? null} label="Inbound webhook marker" />
+              </div>
+
+              {merchantSettings?.connectivity_outbound_error && (
+                <p className="text-xs text-destructive">Last outbound test error: {merchantSettings.connectivity_outbound_error}</p>
+              )}
+
+              <div className="flex flex-wrap items-center gap-2">
                 <Button
                   variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    navigator.clipboard.writeText(webhookUrl);
-                    toast.success("Copied to clipboard");
-                  }}
+                  onClick={() => void handleConnectivityOutbound()}
+                  disabled={onboardingCheck.isPending || !testRecipient.trim()}
                 >
-                  Copy
+                  Trigger Test Outbound
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => void handleConnectivityInbound()}
+                  disabled={onboardingCheck.isPending}
+                >
+                  Check Inbound Marker
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Paste this URL in your Meta App webhook configuration.
-              </p>
-            </div>
+            </section>
 
-            <div className="space-y-2">
-              <Label htmlFor="phoneNumberId">Phone Number ID</Label>
-              <Input
-                id="phoneNumberId"
-                value={phoneNumberId}
-                onChange={(event) => setPhoneNumberId(event.target.value)}
-                placeholder="e.g. 123456789012345"
-              />
-              <p className="text-xs text-muted-foreground">From Meta Business Suite to WhatsApp to Phone Numbers.</p>
-            </div>
+            <Separator />
 
-            <div className="space-y-2">
-              <Label htmlFor="verifyToken">Verify Token</Label>
-              <Input
-                id="verifyToken"
-                value={verifyToken}
-                onChange={(event) => setVerifyToken(event.target.value)}
-                placeholder="Choose a secret token for webhook verification"
-              />
-              <p className="text-xs text-muted-foreground">
-                Must match the token you set in Meta webhook configuration.
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="appSecret">App Secret (recommended)</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  id="appSecret"
-                  type={showSecret ? "text" : "password"}
-                  value={appSecret}
-                  onChange={(event) => setAppSecret(event.target.value)}
-                  placeholder="Meta App Secret for signature verification"
-                />
-                <Button variant="ghost" size="icon" onClick={() => setShowSecret((value) => !value)}>
-                  {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            <section className="space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-sm font-semibold">Step 3 - Status Panel</h3>
+                <Button variant="outline" size="sm" onClick={() => void handleRefreshStatus()} disabled={onboardingCheck.isPending}>
+                  Refresh Status
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Enables X-Hub-Signature-256 verification in the webhook.
-              </p>
-            </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="accessToken">Access Token (required for sending)</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  id="accessToken"
-                  type={showToken ? "text" : "password"}
-                  value={accessToken}
-                  onChange={(event) => setAccessToken(event.target.value)}
-                  placeholder="Permanent or temporary access token"
-                />
-                <Button variant="ghost" size="icon" onClick={() => setShowToken((value) => !value)}>
-                  {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </Button>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                  <p className="text-xs text-muted-foreground">Last webhook received</p>
+                  <p className="text-sm">{formatTs(merchantSettings?.last_webhook_received_at)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Last outbound success</p>
+                  <p className="text-sm">{formatTs(merchantSettings?.last_outbound_success_at)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Last outbound failure</p>
+                  <p className="text-sm">{formatTs(merchantSettings?.last_outbound_failure_at)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Token expiration</p>
+                  <p className="text-sm">{merchantSettings?.token_expires_at ? formatTs(merchantSettings.token_expires_at) : "Unknown"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Template approval state</p>
+                  <p className="text-sm capitalize">{merchantSettings?.template_approval_state ?? "Unknown"}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Approved: {merchantSettings?.template_approved_count ?? 0}, Pending: {merchantSettings?.template_pending_count ?? 0}, Rejected: {merchantSettings?.template_rejected_count ?? 0}
+                  </p>
+                </div>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Required for outbound messages from this merchant configuration.
-              </p>
-            </div>
-
-            <Button
-              onClick={handleSave}
-              disabled={updateMerchant.isPending || deactivateMerchant.isPending}
-              className="mt-2"
-            >
-              <Save className="h-4 w-4 mr-2" />
-              {updateMerchant.isPending ? "Saving..." : "Save Settings"}
-            </Button>
+            </section>
           </CardContent>
         </Card>
 
