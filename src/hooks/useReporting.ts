@@ -135,6 +135,7 @@ export function useConversationTimeline(conversationId?: string) {
 }
 
 export function useOpsTimelineErrors(filters?: {
+  severity?: string;
   functionName?: string;
   merchantId?: string;
 }) {
@@ -144,6 +145,7 @@ export function useOpsTimelineErrors(filters?: {
     queryKey: [
       "ops-timeline-errors",
       orgId ?? null,
+      filters?.severity ?? "error",
       filters?.functionName ?? "all",
       filters?.merchantId ?? "all",
     ],
@@ -153,9 +155,12 @@ export function useOpsTimelineErrors(filters?: {
         .from("conversation_timeline_view")
         .select("*")
         .eq("org_id", orgId!)
-        .eq("severity", "error")
         .order("created_at", { ascending: false })
         .limit(200);
+
+      if (filters?.severity && filters.severity !== "all") {
+        query = query.eq("severity", filters.severity);
+      }
 
       if (filters?.functionName && filters.functionName !== "all") {
         query = query.eq("metadata->>function_name", filters.functionName);

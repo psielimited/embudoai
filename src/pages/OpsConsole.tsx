@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { AlertCircle, Clock3 } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
@@ -20,15 +20,11 @@ export default function OpsConsole() {
   const [merchantId, setMerchantId] = useState("all");
 
   const { data: merchants = [] } = useMerchants();
-  const { data: baseEvents = [], isLoading } = useOpsTimelineErrors({
+  const { data: events = [], isLoading } = useOpsTimelineErrors({
+    severity,
     functionName,
     merchantId,
   });
-
-  const events = useMemo(() => {
-    if (severity === "all") return baseEvents;
-    return baseEvents.filter((event) => event.severity === severity);
-  }, [baseEvents, severity]);
 
   return (
     <>
