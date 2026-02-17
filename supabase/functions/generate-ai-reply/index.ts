@@ -61,6 +61,39 @@ Deno.serve(async (req) => {
       );
     }
 
+    const { data: subscription } = await supabase
+      .from("org_subscriptions")
+      .select("status, trial_ends_at, subscription_plans(ai_enabled)")
+      .eq("org_id", conv.org_id)
+      .maybeSingle();
+
+    const aiEnabledByPlan = subscription?.subscription_plans?.ai_enabled ?? true;
+    const trialExpired = subscription?.status === "trial"
+      && !!subscription?.trial_ends_at
+      && new Date(subscription.trial_ends_at).getTime() <= Date.now();
+    const activeSubState = ["active", "trial"].includes(subscription?.status ?? "trial") && !trialExpired;
+
+    if (!aiEnabledByPlan || !activeSubState) {
+      await supabase.from("channel_events").insert({
+        org_id: conv.org_id,
+        merchant_id: conv.merchant_id,
+        channel: "whatsapp",
+        provider: "meta",
+        event_type: "ai_blocked_by_plan",
+        provider_event_id: `ai_blocked_${conv.id}_${Date.now()}`,
+        external_contact: conv.external_contact,
+        severity: "warning",
+        payload: {
+          function_name: "generate-ai-reply",
+          conversation_id: conv.id,
+          subscription_status: subscription?.status ?? "unknown",
+          ai_enabled: aiEnabledByPlan,
+          trial_expired: trialExpired,
+        },
+      });
+      return new Response(null, { status: 204, headers: corsHeaders });
+    }
+
     // AI governance: skip if disabled, paused, or needs_handoff
     if (!conv.ai_enabled || conv.ai_paused || conv.status === "needs_handoff") {
       console.log(`AI skipped for conversation ${conv.id}: enabled=${conv.ai_enabled}, paused=${conv.ai_paused}, status=${conv.status}`);

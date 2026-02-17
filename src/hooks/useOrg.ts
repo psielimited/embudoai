@@ -5,6 +5,9 @@ import { callEdge } from "@/lib/edge";
 import type { Database } from "@/integrations/supabase/types";
 
 export type OrgSettingsRow = Database["public"]["Tables"]["org_settings"]["Row"];
+export type OrgSubscriptionRow = Database["public"]["Tables"]["org_subscriptions"]["Row"] & {
+  subscription_plans: Database["public"]["Tables"]["subscription_plans"]["Row"] | null;
+};
 
 export function useOrgs() {
   return useQuery({
@@ -151,6 +154,46 @@ export function useOrgSettings(orgId?: string) {
       } as OrgSettingsRow;
     },
   });
+}
+
+export function useOrgSubscription(orgId?: string) {
+  return useQuery({
+    queryKey: ["org-subscription", orgId],
+    enabled: !!orgId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("org_subscriptions")
+        .select("*, subscription_plans(*)")
+        .eq("org_id", orgId!)
+        .maybeSingle();
+
+      if (error) throw error;
+      return (data ?? null) as OrgSubscriptionRow | null;
+    },
+    refetchInterval: 30_000,
+  });
+}
+
+export function useOrgPlanStatus(orgId?: string) {
+  const { data: subscription, isLoading } = useOrgSubscription(orgId);
+
+  const now = Date.now();
+  const trialEndsAt = subscription?.trial_ends_at ? new Date(subscription.trial_ends_at).getTime() : null;
+  const trialDaysRemaining = trialEndsAt ? Math.ceil((trialEndsAt - now) / 86_400_000) : null;
+  const trialExpired = subscription?.status === "trial" && !!trialEndsAt && trialEndsAt <= now;
+  const planLimit = subscription?.subscription_plans?.message_limit ?? 0;
+  const messagesUsed = subscription?.messages_used ?? 0;
+  const overQuota = planLimit > 0 && messagesUsed >= planLimit;
+  const pastDue = subscription?.status === "past_due";
+
+  return {
+    subscription,
+    isLoading,
+    trialDaysRemaining,
+    trialExpired,
+    overQuota,
+    pastDue,
+  };
 }
 
 export function useUpdateOrg() {

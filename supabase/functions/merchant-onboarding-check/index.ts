@@ -79,6 +79,12 @@ Deno.serve(async (req) => {
 
     const now = new Date().toISOString();
 
+    const { data: subscription } = await supabase
+      .from("org_subscriptions")
+      .select("status, messages_used, trial_ends_at, subscription_plans(message_limit)")
+      .eq("org_id", merchant.org_id)
+      .maybeSingle();
+
     // deno-lint-ignore no-explicit-any
     const upsertSettings = async (updates: Record<string, any>) => {
       const { data, error } = await supabase
@@ -180,6 +186,26 @@ Deno.serve(async (req) => {
       const testTo = body?.test_to as string | undefined;
       if (!testTo) {
         return json({ ok: false, error: "test_to is required" }, 400);
+      }
+
+      const status = subscription?.status ?? "trial";
+      const trialExpired = status === "trial" && !!subscription?.trial_ends_at && new Date(subscription.trial_ends_at).getTime() <= Date.now();
+      const messageLimit = subscription?.subscription_plans?.message_limit ?? 0;
+      const messagesUsed = subscription?.messages_used ?? 0;
+      const overQuota = messageLimit > 0 && messagesUsed >= messageLimit;
+
+      if (!["active", "trial"].includes(status) || trialExpired || overQuota) {
+        return json({
+          ok: false,
+          error: overQuota
+            ? `Message quota exceeded (${messagesUsed}/${messageLimit}).`
+            : trialExpired
+              ? "Trial expired."
+              : `Subscription status ${status} does not allow outbound tests.`,
+          subscription_status: status,
+          messages_used: messagesUsed,
+          message_limit: messageLimit,
+        }, 403);
       }
 
       if (!merchant.whatsapp_phone_number_id || !merchant.whatsapp_access_token) {

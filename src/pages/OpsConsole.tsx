@@ -13,18 +13,30 @@ import {
 } from "@/components/ui/select";
 import { useMerchants } from "@/hooks/useMerchants";
 import { useOpsTimelineErrors } from "@/hooks/useReporting";
+import { useActiveOrg, useOrgPlanStatus } from "@/hooks/useOrg";
 
 export default function OpsConsole() {
   const [severity, setSeverity] = useState("error");
   const [functionName, setFunctionName] = useState("all");
   const [merchantId, setMerchantId] = useState("all");
+  const [subscriptionStatusFilter, setSubscriptionStatusFilter] = useState("all");
+  const [overQuotaFilter, setOverQuotaFilter] = useState("all");
+  const [trialExpiringFilter, setTrialExpiringFilter] = useState("all");
 
+  const { data: activeOrgId } = useActiveOrg();
+  const { subscription, overQuota, trialDaysRemaining } = useOrgPlanStatus(activeOrgId ?? undefined);
   const { data: merchants = [] } = useMerchants();
   const { data: events = [], isLoading } = useOpsTimelineErrors({
     severity,
     functionName,
     merchantId,
   });
+
+  const trialExpiringSoon = subscription?.status === "trial" && (trialDaysRemaining ?? 999) >= 0 && (trialDaysRemaining ?? 999) < 3;
+  const subscriptionStatusPass = subscriptionStatusFilter === "all" || subscription?.status === subscriptionStatusFilter;
+  const overQuotaPass = overQuotaFilter === "all" || (overQuotaFilter === "yes" ? overQuota : !overQuota);
+  const trialExpiringPass = trialExpiringFilter === "all" || (trialExpiringFilter === "yes" ? trialExpiringSoon : !trialExpiringSoon);
+  const filteredEvents = subscriptionStatusPass && overQuotaPass && trialExpiringPass ? events : [];
 
   return (
     <>
@@ -74,20 +86,55 @@ export default function OpsConsole() {
           </SelectContent>
         </Select>
 
-        <span className="ml-auto text-xs text-muted-foreground">{events.length} events</span>
+        <Select value={subscriptionStatusFilter} onValueChange={setSubscriptionStatusFilter}>
+          <SelectTrigger className="w-44">
+            <SelectValue placeholder="Subscription" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All subscription</SelectItem>
+            <SelectItem value="active">Active</SelectItem>
+            <SelectItem value="trial">Trial</SelectItem>
+            <SelectItem value="past_due">Past due</SelectItem>
+            <SelectItem value="canceled">Canceled</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select value={overQuotaFilter} onValueChange={setOverQuotaFilter}>
+          <SelectTrigger className="w-32">
+            <SelectValue placeholder="Over quota" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Quota: all</SelectItem>
+            <SelectItem value="yes">Over quota</SelectItem>
+            <SelectItem value="no">Within quota</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select value={trialExpiringFilter} onValueChange={setTrialExpiringFilter}>
+          <SelectTrigger className="w-40">
+            <SelectValue placeholder="Trial expiring" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Trial: all</SelectItem>
+            <SelectItem value="yes">Expiring soon</SelectItem>
+            <SelectItem value="no">Not expiring</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <span className="ml-auto text-xs text-muted-foreground">{filteredEvents.length} events</span>
       </div>
 
       {isLoading ? (
         <Card>
           <CardContent className="py-8 text-sm text-muted-foreground">Loading ops events...</CardContent>
         </Card>
-      ) : events.length === 0 ? (
+      ) : filteredEvents.length === 0 ? (
         <Card>
           <CardContent className="py-8 text-sm text-muted-foreground">No events for the selected filters.</CardContent>
         </Card>
       ) : (
         <div className="space-y-2">
-          {events.map((event) => (
+          {filteredEvents.map((event) => (
             <Card key={`${event.source_type}-${event.id}`}>
               <CardContent className="py-4">
                 <div className="flex items-start gap-3">

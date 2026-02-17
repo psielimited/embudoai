@@ -50,3 +50,7 @@ verify_jwt = false
 [functions.merchant-onboarding-check]
 verify_jwt = false
 
+
+[functions.automation-worker]
+verify_jwt = false
+

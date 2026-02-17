@@ -4,6 +4,7 @@ import { AppSidebar } from "@/components/AppSidebar";
 import { UserMenu } from "@/components/UserMenu";
 import { NotificationBell } from "@/components/NotificationBell";
 import { OrgSwitcher } from "@/components/OrgSwitcher";
+import { GlobalPlanBanner } from "@/components/GlobalPlanBanner";
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -25,6 +26,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               <UserMenu />
             </div>
           </header>
+          <GlobalPlanBanner />
           <div className="flex-1 p-6">
             {children}
           </div>

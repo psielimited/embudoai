@@ -135,6 +135,59 @@ Deno.serve(async (req) => {
       return json({ error: "Merchant WhatsApp not configured (missing phone_number_id or access_token)" }, 400);
     }
 
+    const { data: subscription } = await supabase
+      .from("org_subscriptions")
+      .select("status,messages_used,trial_ends_at,subscription_plans(message_limit)")
+      .eq("org_id", message.org_id)
+      .maybeSingle();
+
+    const subStatus = subscription?.status ?? "trial";
+    const trialExpired = subStatus === "trial" &&
+      !!subscription?.trial_ends_at &&
+      new Date(subscription.trial_ends_at).getTime() <= Date.now();
+    const messageLimit = subscription?.subscription_plans?.message_limit ?? 0;
+    const messagesUsed = subscription?.messages_used ?? 0;
+    const overQuota = messageLimit > 0 && messagesUsed >= messageLimit;
+
+    if (!["active", "trial"].includes(subStatus) || trialExpired || overQuota) {
+      const blockReason = overQuota
+        ? `Message quota exceeded (${messagesUsed}/${messageLimit})`
+        : trialExpired
+          ? "Trial expired"
+          : `Subscription status ${subStatus} blocks outbound sends`;
+
+      await supabase.from("channel_events").insert({
+        org_id: message.org_id,
+        merchant_id: merchant.id,
+        channel: "whatsapp",
+        provider: "meta",
+        event_type: "quota_block",
+        provider_event_id: `quota_block_${message_id}_${Date.now()}`,
+        external_contact: conv.external_contact,
+        severity: "warning",
+        payload: {
+          function_name: "send-whatsapp-message",
+          message_id,
+          status: subStatus,
+          trial_expired: trialExpired,
+          messages_used: messagesUsed,
+          message_limit: messageLimit,
+          reason: blockReason,
+        },
+      });
+
+      await supabase
+        .from("messages")
+        .update({ send_status: "failed", send_error: blockReason })
+        .eq("id", message_id);
+
+      return json({
+        ok: false,
+        error: blockReason,
+        send_status: "failed",
+      }, 402);
+    }
+
     const resolvedIdempotencyKey = idempotency_key ?? `msg:${message_id}`;
 
     const { data: existingJob, error: existingJobError } = await supabase
@@ -389,6 +442,11 @@ Deno.serve(async (req) => {
             updated_at: nowIso(),
           })
           .eq("id", jobId);
+
+        await supabase.rpc("increment_org_messages_used", {
+          p_org_id: message.org_id,
+          p_message_id: message_id,
+        });
 
         return json({
           ok: true,

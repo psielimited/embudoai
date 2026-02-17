@@ -26,6 +26,22 @@ async function executeAutomationRules(
   toStageId: string, pipelineId: string, ownerUserId: string, orgId: string,
 ) {
   try {
+    const { data: subscription } = await serviceClient
+      .from("org_subscriptions")
+      .select("status, trial_ends_at, subscription_plans(automation_enabled)")
+      .eq("org_id", orgId)
+      .maybeSingle();
+
+    const trialExpired = subscription?.status === "trial"
+      && !!subscription?.trial_ends_at
+      && new Date(subscription.trial_ends_at).getTime() <= Date.now();
+    const activeState = ["active", "trial"].includes(subscription?.status ?? "trial") && !trialExpired;
+    const automationEnabledByPlan = subscription?.subscription_plans?.automation_enabled ?? false;
+
+    if (!activeState || !automationEnabledByPlan) {
+      return;
+    }
+
     const { data: rules } = await serviceClient
       .from("automation_rules")
       .select("*")

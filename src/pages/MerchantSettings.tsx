@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { PageHeader } from "@/components/PageHeader";
+import { PlanSummary } from "@/components/PlanSummary";
 import {
   useDeactivateMerchant,
   useMerchant,
@@ -20,6 +21,7 @@ import {
   useRunMerchantOnboardingCheck,
   useUpdateMerchant,
 } from "@/hooks/useMerchants";
+import { useActiveOrg, useOrgPlanStatus } from "@/hooks/useOrg";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -75,6 +77,8 @@ export default function MerchantSettings() {
   const navigate = useNavigate();
   const { data: merchant, isLoading } = useMerchant(merchantId!);
   const { data: merchantSettings } = useMerchantSettings(merchantId);
+  const { data: activeOrgId } = useActiveOrg();
+  const { subscription, trialDaysRemaining, overQuota, trialExpired } = useOrgPlanStatus(activeOrgId ?? undefined);
   const updateMerchant = useUpdateMerchant();
   const deactivateMerchant = useDeactivateMerchant();
   const onboardingCheck = useRunMerchantOnboardingCheck();
@@ -103,6 +107,17 @@ export default function MerchantSettings() {
     if (merchantSettings?.onboarding_step) return merchantSettings.onboarding_step;
     return 1;
   }, [merchantSettings]);
+
+  const plan = subscription?.subscription_plans;
+  const canRunConnectivityTest = !!subscription
+    && (subscription.status === "active" || subscription.status === "trial")
+    && !trialExpired
+    && !overQuota;
+  const showUpgradeCta = Boolean(
+    (plan && (!plan.ai_enabled || !plan.automation_enabled))
+      || overQuota
+      || (subscription?.status === "trial" && (trialDaysRemaining ?? 99) < 3),
+  );
 
   const handleSaveCredentials = async () => {
     if (!merchantId) return;
@@ -269,6 +284,13 @@ export default function MerchantSettings() {
           </CardContent>
         </Card>
 
+        <PlanSummary
+          subscription={subscription}
+          trialDaysRemaining={trialDaysRemaining}
+          overQuota={overQuota}
+          showUpgradeCta={showUpgradeCta}
+        />
+
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -394,6 +416,30 @@ export default function MerchantSettings() {
             <section className="space-y-4">
               <h3 className="text-sm font-semibold">Step 2 - Connectivity Test</h3>
 
+              <div className="rounded-md border border-border bg-muted/30 p-3 text-sm">
+                <p className="font-medium">Usage Panel</p>
+                <p className="text-muted-foreground">
+                  {subscription?.messages_used ?? 0} / {plan?.message_limit ?? 0} messages used this cycle
+                  {subscription?.status === "trial" && trialDaysRemaining !== null
+                    ? ` • Trial ends in ${Math.max(0, trialDaysRemaining)} day(s)`
+                    : ""}
+                </p>
+              </div>
+
+              {!canRunConnectivityTest && (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>Connectivity test blocked by plan</AlertTitle>
+                  <AlertDescription>
+                    {overQuota
+                      ? `Usage limit reached (${subscription?.messages_used ?? 0}/${plan?.message_limit ?? 0}). Upgrade to continue testing outbound sends.`
+                      : trialExpired
+                        ? "Trial expired. Upgrade plan to continue outbound testing."
+                        : "Subscription must be active or trial to run connectivity tests."}
+                  </AlertDescription>
+                </Alert>
+              )}
+
               <div className="space-y-2">
                 <Label htmlFor="testRecipient">Test recipient phone (E.164)</Label>
                 <Input
@@ -417,7 +463,7 @@ export default function MerchantSettings() {
                 <Button
                   variant="outline"
                   onClick={() => void handleConnectivityOutbound()}
-                  disabled={onboardingCheck.isPending || !testRecipient.trim()}
+                  disabled={onboardingCheck.isPending || !testRecipient.trim() || !canRunConnectivityTest}
                 >
                   Trigger Test Outbound
                 </Button>

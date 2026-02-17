@@ -30,6 +30,23 @@ Deno.serve(async (req) => {
 
     for (const org of orgs) {
       const orgId = org.id;
+
+      const { data: subscription } = await client
+        .from("org_subscriptions")
+        .select("status, trial_ends_at, subscription_plans(sla_monitoring_enabled)")
+        .eq("org_id", orgId)
+        .maybeSingle();
+
+      const trialExpired = subscription?.status === "trial"
+        && !!subscription?.trial_ends_at
+        && new Date(subscription.trial_ends_at).getTime() <= Date.now();
+      const slaEnabledByPlan = subscription?.subscription_plans?.sla_monitoring_enabled ?? false;
+      const activeState = ["active", "trial"].includes(subscription?.status ?? "trial") && !trialExpired;
+
+      if (!slaEnabledByPlan || !activeState) {
+        continue;
+      }
+
       const { data: orgSettings } = await client.from("org_settings")
         .select("sla_first_response_minutes, sla_next_response_minutes")
         .eq("org_id", orgId)
