@@ -67,7 +67,9 @@ Deno.serve(async (req) => {
       .eq("org_id", conv.org_id)
       .maybeSingle();
 
-    const aiEnabledByPlan = subscription?.subscription_plans?.ai_enabled ?? true;
+    const plans = subscription?.subscription_plans;
+    const plan = Array.isArray(plans) ? plans[0] : plans;
+    const aiEnabledByPlan = plan?.ai_enabled ?? true;
     const trialExpired = subscription?.status === "trial"
       && !!subscription?.trial_ends_at
       && new Date(subscription.trial_ends_at).getTime() <= Date.now();
