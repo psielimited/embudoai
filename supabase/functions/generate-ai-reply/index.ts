@@ -113,7 +113,7 @@ Deno.serve(async (req) => {
       { role: "system", content: systemPrompt },
     ];
 
-    for (const msg of messages) {
+    for (const msg of messages ?? []) {
       const role = msg.sender === "user" ? "user" : "assistant";
       chatMessages.push({ role, content: msg.content });
     }

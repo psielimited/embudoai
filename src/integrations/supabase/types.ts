@@ -1525,22 +1525,7 @@ export type Database = {
           severity: string | null
           source_type: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "conversation_events_conversation_id_fkey"
-            columns: ["conversation_id"]
-            isOneToOne: false
-            referencedRelation: "conversations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "conversation_events_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "orgs"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       v_funnel_counts: {
         Row: {
