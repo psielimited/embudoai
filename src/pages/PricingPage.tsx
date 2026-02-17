@@ -6,11 +6,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 
 interface PricingTier {
+  planKey: string;
   name: string;
   price: string;
   usd?: string;
   bestFor?: string;
-  limit?: string;
+  limit: string;
+  trialDuration: string;
+  seats: string;
+  supportLevel: string;
+  aiEnabled: boolean;
+  automationEnabled: boolean;
+  slaEnabled: boolean;
   includes: string[];
   restrictions?: string[];
   limitBehavior?: string[];
@@ -20,10 +27,17 @@ interface PricingTier {
 
 const tiers: PricingTier[] = [
   {
+    planKey: "free",
     name: "Free (Freemium)",
-    price: "RD$0 / month",
+    price: "$0 / month",
     bestFor: "Testing Embudex",
     limit: "200 conversations/month (hard cap)",
+    trialDuration: "No trial (active immediately)",
+    seats: "1 seat",
+    supportLevel: "Community",
+    aiEnabled: true,
+    automationEnabled: false,
+    slaEnabled: false,
     includes: ["Basic AI replies", "Conversation history", "1 WhatsApp number", "1 user seat"],
     restrictions: [
       '"Powered by Embudex" shown in first outbound message',
@@ -36,13 +50,19 @@ const tiers: PricingTier[] = [
       '150 conversations: "Approaching limit" notice (UI only)',
       '200 conversations: "AI pauses until upgrade" (copy only)',
     ],
-    cta: "Start Free",
+    cta: "Start Trial",
   },
   {
+    planKey: "starter",
     name: "Starter",
-    price: "RD$1,200 / month",
-    usd: "~$20",
+    price: "$20 / month",
     limit: "Up to 500 conversations/month",
+    trialDuration: "7-day trial",
+    seats: "1 seat",
+    supportLevel: "Email",
+    aiEnabled: true,
+    automationEnabled: false,
+    slaEnabled: false,
     includes: [
       "1 WhatsApp number",
       "AI auto-replies",
@@ -51,13 +71,19 @@ const tiers: PricingTier[] = [
       "Message templates",
       "1 user seat",
     ],
-    cta: "Open Dashboard",
+    cta: "Start Trial",
   },
   {
+    planKey: "growth",
     name: "Growth",
-    price: "RD$2,800 / month",
-    usd: "~$47",
+    price: "$50 / month",
     limit: "Up to 3,000 conversations/month",
+    trialDuration: "7-day trial",
+    seats: "2 seats",
+    supportLevel: "Priority email",
+    aiEnabled: true,
+    automationEnabled: true,
+    slaEnabled: true,
     includes: [
       "2 user seats",
       "Lead status tracking",
@@ -65,13 +91,20 @@ const tiers: PricingTier[] = [
       "Basic automation rules",
       "SLA indicators",
     ],
-    cta: "Open Dashboard",
+    cta: "Choose Plan",
     featured: true,
   },
   {
+    planKey: "pro",
     name: "Pro",
-    price: "RD$5,500 / month",
-    usd: "~$92",
+    price: "$100 / month",
+    limit: "Custom high-volume cap",
+    trialDuration: "7-day trial",
+    seats: "Multiple seats",
+    supportLevel: "Priority support",
+    aiEnabled: true,
+    automationEnabled: true,
+    slaEnabled: true,
     includes: [
       "Higher conversation volume",
       "Team assignment",
@@ -80,7 +113,7 @@ const tiers: PricingTier[] = [
       "Advanced reporting",
       "Multiple seats",
     ],
-    cta: "Open Dashboard",
+    cta: "Choose Plan",
   },
 ];
 
@@ -111,8 +144,7 @@ export default function PricingPage() {
       <section className="mb-10 text-center">
         <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">Pricing</h1>
         <p className="mx-auto mt-3 max-w-2xl text-sm text-muted-foreground sm:text-base">
-          Simple, transparent plans for merchants using Embudex as a WhatsApp-first AI sales and conversation CRM layer.
-          All prices are in DOP, with approximate USD references for convenience.
+          Plan limits and capabilities are enforced by subscription. All prices are in USD.
         </p>
       </section>
 
@@ -139,9 +171,30 @@ export default function PricingPage() {
                 <p className="text-2xl font-semibold">{tier.price}</p>
                 {tier.usd ? <p className="text-xs text-muted-foreground">({tier.usd} USD approx)</p> : null}
               </div>
-              {tier.limit ? <p className="text-sm text-muted-foreground">{tier.limit}</p> : null}
+              <p className="text-sm text-muted-foreground">{tier.limit}</p>
+              <p className="text-xs text-muted-foreground">{tier.trialDuration}</p>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="rounded border border-border p-2">
+                  <p className="text-muted-foreground">AI</p>
+                  <p className="font-medium">{tier.aiEnabled ? "Included" : "Not included"}</p>
+                </div>
+                <div className="rounded border border-border p-2">
+                  <p className="text-muted-foreground">Automation</p>
+                  <p className="font-medium">{tier.automationEnabled ? "Included" : "Not included"}</p>
+                </div>
+                <div className="rounded border border-border p-2">
+                  <p className="text-muted-foreground">SLA</p>
+                  <p className="font-medium">{tier.slaEnabled ? "Included" : "Not included"}</p>
+                </div>
+                <div className="rounded border border-border p-2">
+                  <p className="text-muted-foreground">Seats</p>
+                  <p className="font-medium">{tier.seats}</p>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">Support: {tier.supportLevel}</p>
+
               <div>
                 <p className="mb-2 text-sm font-medium">Includes</p>
                 <ul className="space-y-1.5 text-sm text-muted-foreground">
@@ -177,7 +230,7 @@ export default function PricingPage() {
               ) : null}
 
               <Button asChild className="w-full" variant={tier.featured ? "default" : "outline"}>
-                <Link to="/dashboard">{tier.cta}</Link>
+                <Link to={`/signup?plan=${encodeURIComponent(tier.planKey)}`}>{tier.cta}</Link>
               </Button>
             </CardContent>
           </Card>
@@ -185,23 +238,12 @@ export default function PricingPage() {
       </section>
 
       <section className="mt-10 rounded-xl border border-border bg-muted/30 p-6">
-        <h2 className="text-xl font-semibold">Add-ons and Notes</h2>
+        <h2 className="text-xl font-semibold">Overage and Policy</h2>
         <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-muted-foreground">
-          <li>
-            Overage: RD$0.75-1.25 per additional conversation beyond plan limit (meter per conversation thread, not per
-            message).
-          </li>
+          <li>Overage: $0.75-1.25 per additional conversation beyond plan limit.</li>
+          <li>Free plan blocks AI at cap; paid plans may be billed overage depending on billing setup.</li>
           <li>WhatsApp provider/BSP fees not included.</li>
           <li>Taxes may apply.</li>
-        </ul>
-      </section>
-
-      <section className="mt-10 rounded-xl border border-border p-6">
-        <h2 className="text-xl font-semibold">Why freemium?</h2>
-        <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-muted-foreground">
-          <li>Reduces trust barrier for informal merchants</li>
-          <li>Proves value before committing</li>
-          <li>Drives adoption via watermark exposure</li>
         </ul>
       </section>
 

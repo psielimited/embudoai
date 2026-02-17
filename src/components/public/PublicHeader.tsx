@@ -14,6 +14,9 @@ export function PublicHeader() {
           <Link to="/pricing" className="text-muted-foreground transition-colors hover:text-foreground">
             Pricing
           </Link>
+          <Link to="/signup?plan=free" className="text-muted-foreground transition-colors hover:text-foreground">
+            Start Trial
+          </Link>
           <Link to="/dashboard" className="text-muted-foreground transition-colors hover:text-foreground">
             Dashboard
           </Link>

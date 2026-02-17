@@ -42,14 +42,17 @@ export default function LandingPage() {
           </p>
           <p className="text-sm text-muted-foreground sm:text-base">
             Embudex gives merchants instant WhatsApp response, structured conversation tracking, and merchant-aware AI
-            replies that stay grounded in your CRM workflow.
+            replies. Stop missing leads and run your sales motion on top of WhatsApp Business Cloud API.
           </p>
-          <div className="pt-2">
+          <div className="pt-2 flex flex-wrap items-center gap-3">
             <Button asChild size="lg">
-              <Link to="/dashboard" className="inline-flex items-center gap-2">
-                Open Dashboard
+              <Link to="/signup?plan=free" className="inline-flex items-center gap-2">
+                Start Free Trial
                 <ArrowRight className="h-4 w-4" />
               </Link>
+            </Button>
+            <Button asChild size="lg" variant="outline">
+              <Link to="/pricing">View Pricing</Link>
             </Button>
           </div>
         </div>

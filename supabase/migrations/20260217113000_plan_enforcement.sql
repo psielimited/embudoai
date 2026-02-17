@@ -47,9 +47,9 @@ $$;
 INSERT INTO public.subscription_plans (name, monthly_price, message_limit, ai_enabled, automation_enabled, sla_monitoring_enabled, catalog_enabled, multi_user_enabled, support_level)
 VALUES
   ('Free', 0, 200, true, false, false, false, false, 'community'),
-  ('Starter', 1200, 500, true, false, false, false, false, 'standard'),
-  ('Growth', 2800, 3000, true, true, true, false, true, 'priority'),
-  ('Pro', 5500, 10000, true, true, true, true, true, 'premium')
+  ('Starter', 20, 500, true, false, false, false, false, 'standard'),
+  ('Growth', 50, 3000, true, true, true, false, true, 'priority'),
+  ('Pro', 100, 10000, true, true, true, true, true, 'premium')
 ON CONFLICT (name) DO UPDATE SET
   monthly_price = EXCLUDED.monthly_price,
   message_limit = EXCLUDED.message_limit,
@@ -118,7 +118,7 @@ SELECT
   now(),
   now() + interval '1 month',
   0,
-  now() + interval '14 day'
+  now() + interval '7 day'
 FROM public.orgs o
 CROSS JOIN LATERAL (
   SELECT id FROM public.subscription_plans WHERE name = 'Free' LIMIT 1

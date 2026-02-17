@@ -8,9 +8,12 @@ import { DashboardLayout } from "@/layouts/DashboardLayout";
 import { PublicLayout } from "@/layouts/PublicLayout";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { PageSkeleton } from "@/components/PageSkeleton";
+import { SubscriptionGuard } from "@/components/SubscriptionGuard";
 
 const LandingPage = React.lazy(() => import("@/pages/LandingPage"));
 const PricingPage = React.lazy(() => import("@/pages/PricingPage"));
+const Signup = React.lazy(() => import("@/pages/Signup"));
+const Billing = React.lazy(() => import("@/pages/Billing"));
 const PrivacyPolicy = React.lazy(() => import("@/pages/PrivacyPolicy"));
 const DataDeletionPolicy = React.lazy(() => import("@/pages/DataDeletionPolicy"));
 const Dashboard = React.lazy(() => import("@/pages/Dashboard"));
@@ -34,6 +37,7 @@ const ContactDetail = React.lazy(() => import("@/pages/ContactDetail"));
 const Conversations = React.lazy(() => import("@/pages/Conversations"));
 const ImportLeads = React.lazy(() => import("@/pages/ImportLeads"));
 const MerchantSettings = React.lazy(() => import("@/pages/MerchantSettings"));
+const Onboarding = React.lazy(() => import("@/pages/Onboarding"));
 const Login = React.lazy(() => import("@/pages/Login"));
 const NotFound = React.lazy(() => import("@/pages/NotFound"));
 
@@ -48,10 +52,18 @@ const queryClient = new QueryClient({
   },
 });
 
-function ProtectedDashboard({ children }: { children: React.ReactNode }) {
+function ProtectedDashboard({
+  children,
+  bypassSubscriptionGuard = false,
+}: {
+  children: React.ReactNode;
+  bypassSubscriptionGuard?: boolean;
+}) {
   return (
     <ProtectedRoute>
-      <DashboardLayout>{children}</DashboardLayout>
+      <SubscriptionGuard bypass={bypassSubscriptionGuard}>
+        <DashboardLayout>{children}</DashboardLayout>
+      </SubscriptionGuard>
     </ProtectedRoute>
   );
 }
@@ -65,10 +77,13 @@ const App = () => (
         <Suspense fallback={<PageSkeleton />}>
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<PublicLayout><Signup /></PublicLayout>} />
             <Route path="/" element={<PublicLayout><LandingPage /></PublicLayout>} />
             <Route path="/pricing" element={<PublicLayout><PricingPage /></PublicLayout>} />
             <Route path="/privacy" element={<PublicLayout><PrivacyPolicy /></PublicLayout>} />
             <Route path="/data-deletion" element={<PublicLayout><DataDeletionPolicy /></PublicLayout>} />
+            <Route path="/billing" element={<ProtectedDashboard bypassSubscriptionGuard><Billing /></ProtectedDashboard>} />
+            <Route path="/onboarding" element={<ProtectedDashboard><Onboarding /></ProtectedDashboard>} />
             <Route path="/dashboard" element={<ProtectedDashboard><Dashboard /></ProtectedDashboard>} />
             <Route path="/pipeline" element={<ProtectedDashboard><PipelineBoard /></ProtectedDashboard>} />
             <Route path="/pipeline/settings" element={<ProtectedDashboard><PipelineSettings /></ProtectedDashboard>} />

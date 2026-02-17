@@ -5,6 +5,7 @@ import { UserMenu } from "@/components/UserMenu";
 import { NotificationBell } from "@/components/NotificationBell";
 import { OrgSwitcher } from "@/components/OrgSwitcher";
 import { GlobalPlanBanner } from "@/components/GlobalPlanBanner";
+import { UsageMeter } from "@/components/UsageMeter";
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -22,6 +23,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               <OrgSwitcher />
             </div>
             <div className="flex items-center gap-2">
+              <UsageMeter />
               <NotificationBell />
               <UserMenu />
             </div>

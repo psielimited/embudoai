@@ -1,7 +1,7 @@
 import {
   Store, MessageSquare, LayoutDashboard, Kanban, Zap,
   AlertTriangle, FileSpreadsheet, Building2, Users, Shield, SlidersHorizontal,
-  UserPlus, Contact2, Upload,
+  UserPlus, Contact2, Upload, CreditCard,
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
@@ -37,6 +37,7 @@ const orgNav = [
   { title: "Org Settings", url: "/org/settings", icon: Building2 },
   { title: "Users", url: "/org/users", icon: Users },
   { title: "Teams", url: "/org/teams", icon: Shield },
+  { title: "Billing", url: "/billing", icon: CreditCard },
 ];
 
 type NavItem = {
