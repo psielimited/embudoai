@@ -29,25 +29,10 @@ export default function Onboarding() {
       "Applying organization settings",
       "Creating your merchant workspace",
       "Finalizing your onboarding profile",
+      "Preparing your merchants workspace",
     ],
     [],
   );
-
-  useEffect(() => {
-    if (!isSubmitting) {
-      setProvisioningStep(0);
-      return;
-    }
-
-    const timer = window.setInterval(() => {
-      setProvisioningStep((current) => {
-        if (current >= provisioningMessages.length - 1) return current;
-        return current + 1;
-      });
-    }, 1200);
-
-    return () => window.clearInterval(timer);
-  }, [isSubmitting, provisioningMessages.length]);
 
   useEffect(() => {
     const checkExisting = async () => {
@@ -64,12 +49,13 @@ export default function Onboarding() {
 
       const activeOrgId = profile?.active_org_id ?? null;
       if (activeOrgId) {
-        const { count } = await supabase
+        const { data: existingMerchant } = await supabase
           .from("merchants")
-          .select("id", { count: "exact", head: true })
+          .select("id")
           .eq("org_id", activeOrgId);
-        if ((count ?? 0) > 0) {
-          navigate("/merchants", { replace: true });
+        const merchantId = existingMerchant?.[0]?.id;
+        if (merchantId) {
+          navigate(`/merchants/${merchantId}/settings`, { replace: true });
           return;
         }
       }
@@ -83,22 +69,58 @@ export default function Onboarding() {
   const handleProvision = async (event: React.FormEvent) => {
     event.preventDefault();
     setIsSubmitting(true);
+    setProvisioningStep(0);
     try {
-      await callEdge("provision-org-and-merchant", {
+      const result = await callEdge<{ org_id?: string }>("provision-org-and-merchant", {
         plan,
         org_name: orgName.trim(),
         merchant_name: merchantName.trim(),
         country: country.trim(),
         timezone: timezone.trim(),
       });
+      setProvisioningStep(3);
       invalidateActiveOrgCache();
       localStorage.removeItem("embudex.signup_plan");
+      setProvisioningStep(4);
+
+      const orgId = result?.org_id ?? (await supabase
+        .from("profiles")
+        .select("active_org_id")
+        .eq("user_id", user?.id ?? "")
+        .maybeSingle()).data?.active_org_id;
+
+      let provisionedMerchantId: string | null = null;
+      if (orgId) {
+        const start = Date.now();
+        let ready = false;
+        while (Date.now() - start < 10_000) {
+          const { data: merchants, error } = await supabase
+            .from("merchants")
+            .select("id")
+            .eq("org_id", orgId);
+          const merchantId = merchants?.[0]?.id ?? null;
+          if (!error && merchantId) {
+            provisionedMerchantId = merchantId;
+            ready = true;
+            break;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        }
+        if (!ready) {
+          throw new Error("Workspace is still provisioning. Please try again in a moment.");
+        }
+      }
+
       toast.success("Workspace setup complete.");
-      navigate("/merchants", { replace: true });
+      navigate(
+        provisionedMerchantId ? `/merchants/${provisionedMerchantId}/settings` : "/merchants",
+        { replace: true },
+      );
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Provisioning failed");
-    } finally {
+      setProvisioningStep(0);
       setIsSubmitting(false);
+      return;
     }
   };
 
@@ -152,21 +174,52 @@ export default function Onboarding() {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            <div className="mb-4 rounded-md border border-border bg-muted/30 p-3 text-sm text-muted-foreground">
+              <p className="font-medium text-foreground">What should I enter?</p>
+              <p>
+                <span className="font-medium">Organization name</span>: your company/workspace name (example:{" "}
+                <span className="italic">Mindose Media Group</span>).
+              </p>
+              <p>
+                <span className="font-medium">Merchant / business name</span>: the specific brand/store that will receive WhatsApp conversations
+                (example: <span className="italic">Psi E-Limited</span> or <span className="italic">Acme Downtown Store</span>).
+              </p>
+            </div>
             <form className="grid gap-4 sm:grid-cols-2" onSubmit={handleProvision}>
               <div className="space-y-2">
                 <Label htmlFor="org-name">Organization name</Label>
                 <div className="relative">
                   <Building2 className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input id="org-name" className="pl-10" value={orgName} onChange={(e) => setOrgName(e.target.value)} required />
+                  <Input
+                    id="org-name"
+                    className="pl-10"
+                    placeholder="Mindose Media Group"
+                    value={orgName}
+                    onChange={(e) => setOrgName(e.target.value)}
+                    required
+                  />
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  This is your main workspace. You can add multiple merchants under one organization.
+                </p>
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="merchant-name">Merchant / business name</Label>
                 <div className="relative">
                   <Store className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input id="merchant-name" className="pl-10" value={merchantName} onChange={(e) => setMerchantName(e.target.value)} required />
+                  <Input
+                    id="merchant-name"
+                    className="pl-10"
+                    placeholder="Psi E-Limited"
+                    value={merchantName}
+                    onChange={(e) => setMerchantName(e.target.value)}
+                    required
+                  />
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  This is the first WhatsApp-connected business profile in your organization.
+                </p>
               </div>
 
               <div className="space-y-2">
@@ -175,11 +228,13 @@ export default function Onboarding() {
                   <Globe className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input id="country" className="pl-10" value={country} onChange={(e) => setCountry(e.target.value)} required />
                 </div>
+                <p className="text-xs text-muted-foreground">Used for WhatsApp setup hints and regional defaults.</p>
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="timezone">Timezone</Label>
                 <Input id="timezone" value={timezone} onChange={(e) => setTimezone(e.target.value)} required />
+                <p className="text-xs text-muted-foreground">Used for SLA timers, reports, and message timestamps.</p>
               </div>
 
               <div className="sm:col-span-2">

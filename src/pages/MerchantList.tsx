@@ -11,6 +11,7 @@ import { DataTable } from "@/components/DataTable";
 import { StatusBadge } from "@/components/StatusBadge";
 import { EmptyState } from "@/components/EmptyState";
 import { useCreateMerchant, useMerchants, useUpdateMerchant } from "@/hooks/useMerchants";
+import { useActiveOrg, useOrgPlanStatus } from "@/hooks/useOrg";
 import { useConversationUnreadCounts } from "@/hooks/useConversations";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -89,6 +90,8 @@ export default function MerchantList() {
   const [editingName, setEditingName] = useState("");
   const [showInactive, setShowInactive] = useState(false);
   const { data: merchants = [], isLoading } = useMerchants();
+  const { data: activeOrgId } = useActiveOrg();
+  const { subscription } = useOrgPlanStatus(activeOrgId ?? undefined);
   const { data: unreadCounts } = useConversationUnreadCounts();
   const createMerchant = useCreateMerchant();
   const updateMerchant = useUpdateMerchant();
@@ -96,6 +99,23 @@ export default function MerchantList() {
   const visibleMerchants = showInactive
     ? merchants
     : merchants.filter((merchant) => merchant.status === "active");
+
+  const getMerchantLimitByPlan = (planName?: string | null) => {
+    const normalized = (planName ?? "").toLowerCase();
+    if (normalized.includes("free")) return 1;
+    if (normalized.includes("starter")) return 1;
+    if (normalized.includes("growth")) return 2;
+    if (normalized.includes("pro")) return null;
+    return 1;
+  };
+
+  const planName = subscription?.subscription_plans?.name ?? null;
+  const merchantLimit = getMerchantLimitByPlan(planName);
+  const activeMerchantCount = merchants.filter((merchant) => merchant.status === "active").length;
+  const canCreateMerchant = merchantLimit === null || activeMerchantCount < merchantLimit;
+  const merchantLimitMessage = merchantLimit === null
+    ? "Unlimited merchants on current plan."
+    : `Plan limit: ${merchantLimit} active merchant${merchantLimit === 1 ? "" : "s"}.`;
 
   const startEditing = (merchant: Merchant) => {
     setEditingId(merchant.id);
@@ -258,13 +278,28 @@ export default function MerchantList() {
               <Switch checked={showInactive} onCheckedChange={setShowInactive} />
               <Label className="text-sm text-muted-foreground">Show inactive</Label>
             </div>
-            <Button onClick={() => setCreateOpen(true)}>
+            <Button
+              disabled={!canCreateMerchant}
+              onClick={() => {
+                if (!canCreateMerchant) {
+                  toast.error(`Merchant limit reached for ${planName ?? "current"} plan. Upgrade to add more.`);
+                  return;
+                }
+                setCreateOpen(true);
+              }}
+            >
               <Plus className="h-4 w-4 mr-1" />
               + New Merchant
             </Button>
           </div>
         }
       />
+
+      {!canCreateMerchant && (
+        <p className="mb-4 text-sm text-amber-700">
+          {merchantLimitMessage} Upgrade your plan to add more merchants.
+        </p>
+      )}
 
       <DataTable
         columns={columns}
