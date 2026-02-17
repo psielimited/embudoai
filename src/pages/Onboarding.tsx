@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Building2, Globe, Loader2, Store } from "lucide-react";
+import { Building2, CheckCircle2, Globe, Loader2, Store } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -20,8 +20,34 @@ export default function Onboarding() {
   const [merchantName, setMerchantName] = useState("");
   const [country, setCountry] = useState("Dominican Republic");
   const [timezone, setTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone ?? "UTC");
+  const [provisioningStep, setProvisioningStep] = useState(0);
 
   const plan = useMemo(() => localStorage.getItem("embudex.signup_plan") ?? "free", []);
+  const provisioningMessages = useMemo(
+    () => [
+      "Creating your organization",
+      "Applying organization settings",
+      "Creating your merchant workspace",
+      "Finalizing your onboarding profile",
+    ],
+    [],
+  );
+
+  useEffect(() => {
+    if (!isSubmitting) {
+      setProvisioningStep(0);
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      setProvisioningStep((current) => {
+        if (current >= provisioningMessages.length - 1) return current;
+        return current + 1;
+      });
+    }, 1200);
+
+    return () => window.clearInterval(timer);
+  }, [isSubmitting, provisioningMessages.length]);
 
   useEffect(() => {
     const checkExisting = async () => {
@@ -85,54 +111,87 @@ export default function Onboarding() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl">
-      <Card>
-        <CardHeader>
-          <CardTitle>Onboarding - Step 1: Organization Setup</CardTitle>
-          <CardDescription>
-            Confirm your workspace details. Org and default merchant are created after email confirmation.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form className="grid gap-4 sm:grid-cols-2" onSubmit={handleProvision}>
-            <div className="space-y-2">
-              <Label htmlFor="org-name">Organization name</Label>
-              <div className="relative">
-                <Building2 className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input id="org-name" className="pl-10" value={orgName} onChange={(e) => setOrgName(e.target.value)} required />
+    <>
+      {isSubmitting && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle>Setting up your workspace</CardTitle>
+              <CardDescription>
+                This usually takes a few seconds. Do not close this tab.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {provisioningMessages.map((message, index) => {
+                const isDone = index < provisioningStep;
+                const isActive = index === provisioningStep;
+                return (
+                  <div key={message} className="flex items-center gap-2 text-sm">
+                    {isDone ? (
+                      <CheckCircle2 className="h-4 w-4 text-green-600" />
+                    ) : isActive ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                    ) : (
+                      <div className="h-4 w-4 rounded-full border border-muted-foreground/30" />
+                    )}
+                    <span className={isActive ? "text-foreground font-medium" : "text-muted-foreground"}>{message}</span>
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      <div className="mx-auto max-w-3xl">
+        <Card>
+          <CardHeader>
+            <CardTitle>Onboarding - Step 1: Organization Setup</CardTitle>
+            <CardDescription>
+              Confirm your workspace details. Org and default merchant are created after email confirmation.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form className="grid gap-4 sm:grid-cols-2" onSubmit={handleProvision}>
+              <div className="space-y-2">
+                <Label htmlFor="org-name">Organization name</Label>
+                <div className="relative">
+                  <Building2 className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input id="org-name" className="pl-10" value={orgName} onChange={(e) => setOrgName(e.target.value)} required />
+                </div>
               </div>
-            </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="merchant-name">Merchant / business name</Label>
-              <div className="relative">
-                <Store className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input id="merchant-name" className="pl-10" value={merchantName} onChange={(e) => setMerchantName(e.target.value)} required />
+              <div className="space-y-2">
+                <Label htmlFor="merchant-name">Merchant / business name</Label>
+                <div className="relative">
+                  <Store className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input id="merchant-name" className="pl-10" value={merchantName} onChange={(e) => setMerchantName(e.target.value)} required />
+                </div>
               </div>
-            </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="country">Country</Label>
-              <div className="relative">
-                <Globe className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input id="country" className="pl-10" value={country} onChange={(e) => setCountry(e.target.value)} required />
+              <div className="space-y-2">
+                <Label htmlFor="country">Country</Label>
+                <div className="relative">
+                  <Globe className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input id="country" className="pl-10" value={country} onChange={(e) => setCountry(e.target.value)} required />
+                </div>
               </div>
-            </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="timezone">Timezone</Label>
-              <Input id="timezone" value={timezone} onChange={(e) => setTimezone(e.target.value)} required />
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="timezone">Timezone</Label>
+                <Input id="timezone" value={timezone} onChange={(e) => setTimezone(e.target.value)} required />
+              </div>
 
-            <div className="sm:col-span-2">
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                Continue
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
+              <div className="sm:col-span-2">
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Continue
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    </>
   );
 }
