@@ -14,6 +14,7 @@ const LandingPage = React.lazy(() => import("@/pages/LandingPage"));
 const PricingPage = React.lazy(() => import("@/pages/PricingPage"));
 const Signup = React.lazy(() => import("@/pages/Signup"));
 const Billing = React.lazy(() => import("@/pages/Billing"));
+const AuthCallback = React.lazy(() => import("@/pages/AuthCallback"));
 const PrivacyPolicy = React.lazy(() => import("@/pages/PrivacyPolicy"));
 const DataDeletionPolicy = React.lazy(() => import("@/pages/DataDeletionPolicy"));
 const Dashboard = React.lazy(() => import("@/pages/Dashboard"));
@@ -78,6 +79,7 @@ const App = () => (
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<PublicLayout><Signup /></PublicLayout>} />
+            <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/" element={<PublicLayout><LandingPage /></PublicLayout>} />
             <Route path="/pricing" element={<PublicLayout><PricingPage /></PublicLayout>} />
             <Route path="/privacy" element={<PublicLayout><PrivacyPolicy /></PublicLayout>} />

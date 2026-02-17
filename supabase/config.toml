@@ -57,5 +57,8 @@ verify_jwt = false
 [functions.bootstrap-signup]
 verify_jwt = false
 
+[functions.provision-org-and-merchant]
+verify_jwt = false
+
 [functions.manage-merchant-credentials]
 verify_jwt = false

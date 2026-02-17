@@ -14,6 +14,8 @@ export default function Login() {
   const { user, loading, signIn } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [canResendConfirmation, setCanResendConfirmation] = useState(false);
+  const [isResending, setIsResending] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -32,13 +34,43 @@ export default function Login() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setCanResendConfirmation(false);
     const { error } = await signIn(email, password);
     if (error) {
-      toast.error(error.message);
+      const msg = error.message ?? "Login failed";
+      if (msg.toLowerCase().includes("email not confirmed")) {
+        setCanResendConfirmation(true);
+        toast.error("Email not confirmed. Please confirm your inbox link.");
+      } else if (msg.toLowerCase().includes("invalid login credentials")) {
+        toast.error("Invalid login credentials.");
+      } else {
+        toast.error(msg);
+      }
     } else {
       toast.success("Welcome back");
     }
     setIsSubmitting(false);
+  };
+
+  const handleResendConfirmation = async () => {
+    if (!email.trim()) {
+      toast.error("Enter your email first.");
+      return;
+    }
+    setIsResending(true);
+    const { error } = await supabase.auth.resend({
+      type: "signup",
+      email: email.trim(),
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success("Confirmation email resent.");
+    }
+    setIsResending(false);
   };
 
   const handleGoogleSignIn = async () => {
@@ -117,6 +149,12 @@ export default function Login() {
               {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Sign In
             </Button>
+            {canResendConfirmation && (
+              <Button type="button" variant="secondary" className="w-full" disabled={isResending} onClick={handleResendConfirmation}>
+                {isResending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Resend confirmation email
+              </Button>
+            )}
             <Button type="button" variant="outline" className="w-full" asChild>
               <Link to="/pricing">Start Free Trial</Link>
             </Button>
