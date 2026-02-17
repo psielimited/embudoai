@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { getActiveOrgId } from "@/lib/auth";
-import { callEdge } from "@/lib/edge";
+import { callEdge, isEdgeError } from "@/lib/edge";
 import type { Merchant } from "@/types/database";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -28,7 +28,7 @@ export function useMerchant(id: string) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("merchants")
-        .select("*")
+        .select("id,name,org_id,status,created_at")
         .eq("id", id)
         .maybeSingle();
 
@@ -36,6 +36,53 @@ export function useMerchant(id: string) {
       return data as Merchant | null;
     },
     enabled: !!id,
+  });
+}
+
+export type MerchantCredentials = {
+  whatsapp_phone_number_id: string | null;
+  whatsapp_verify_token: string | null;
+  whatsapp_app_secret: string | null;
+  whatsapp_access_token: string | null;
+};
+
+export function useMerchantCredentials(merchantId?: string) {
+  return useQuery({
+    queryKey: ["merchant-credentials", merchantId],
+    enabled: !!merchantId,
+    queryFn: async () => {
+      const result = await callEdge<{ ok: boolean; credentials: MerchantCredentials }>(
+        "manage-merchant-credentials",
+        { merchant_id: merchantId, action: "read" },
+        { noThrow: true },
+      );
+
+      if (isEdgeError(result)) {
+        // Non-admin users get 403 – return null gracefully
+        if ((result as any).status === 403) return null;
+        throw new Error((result as any).message ?? "Failed to load credentials");
+      }
+
+      return result.credentials;
+    },
+  });
+}
+
+export function useUpdateMerchantCredentials() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ merchantId, credentials }: { merchantId: string; credentials: Partial<MerchantCredentials> }) => {
+      return await callEdge<{ ok: boolean }>("manage-merchant-credentials", {
+        merchant_id: merchantId,
+        action: "update",
+        credentials,
+      });
+    },
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["merchant-credentials", vars.merchantId] });
+      queryClient.invalidateQueries({ queryKey: ["merchant", vars.merchantId] });
+    },
   });
 }
 

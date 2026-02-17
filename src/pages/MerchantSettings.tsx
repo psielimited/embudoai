@@ -17,9 +17,11 @@ import { PlanSummary } from "@/components/PlanSummary";
 import {
   useDeactivateMerchant,
   useMerchant,
+  useMerchantCredentials,
   useMerchantSettings,
   useRunMerchantOnboardingCheck,
   useUpdateMerchant,
+  useUpdateMerchantCredentials,
 } from "@/hooks/useMerchants";
 import { useActiveOrg, useOrgPlanStatus } from "@/hooks/useOrg";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -77,9 +79,11 @@ export default function MerchantSettings() {
   const navigate = useNavigate();
   const { data: merchant, isLoading } = useMerchant(merchantId!);
   const { data: merchantSettings } = useMerchantSettings(merchantId);
+  const { data: credentials, isLoading: credentialsLoading } = useMerchantCredentials(merchantId);
   const { data: activeOrgId } = useActiveOrg();
   const { subscription, trialDaysRemaining, overQuota, trialExpired } = useOrgPlanStatus(activeOrgId ?? undefined);
   const updateMerchant = useUpdateMerchant();
+  const updateCredentials = useUpdateMerchantCredentials();
   const deactivateMerchant = useDeactivateMerchant();
   const onboardingCheck = useRunMerchantOnboardingCheck();
 
@@ -93,13 +97,13 @@ export default function MerchantSettings() {
   const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
-    if (!merchant || initialized) return;
-    setPhoneNumberId(merchant.whatsapp_phone_number_id ?? "");
-    setVerifyToken(merchant.whatsapp_verify_token ?? "");
-    setAppSecret(merchant.whatsapp_app_secret ?? "");
-    setAccessToken(merchant.whatsapp_access_token ?? "");
+    if (!credentials || initialized) return;
+    setPhoneNumberId(credentials.whatsapp_phone_number_id ?? "");
+    setVerifyToken(credentials.whatsapp_verify_token ?? "");
+    setAppSecret(credentials.whatsapp_app_secret ?? "");
+    setAccessToken(credentials.whatsapp_access_token ?? "");
     setInitialized(true);
-  }, [merchant, initialized]);
+  }, [credentials, initialized]);
 
   const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/whatsapp-webhook`;
 
@@ -119,12 +123,14 @@ export default function MerchantSettings() {
       || (subscription?.status === "trial" && (trialDaysRemaining ?? 99) < 3),
   );
 
+  const isAdmin = credentials !== null;
+
   const handleSaveCredentials = async () => {
     if (!merchantId) return;
 
-    await updateMerchant.mutateAsync({
-      id: merchantId,
-      updates: {
+    await updateCredentials.mutateAsync({
+      merchantId,
+      credentials: {
         whatsapp_phone_number_id: phoneNumberId || null,
         whatsapp_verify_token: verifyToken || null,
         whatsapp_app_secret: appSecret || null,
@@ -314,6 +320,16 @@ export default function MerchantSettings() {
             <section className="space-y-4">
               <h3 className="text-sm font-semibold">Step 1 - Credential Entry</h3>
 
+              {!isAdmin && !credentialsLoading && (
+                <Alert>
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>Admin access required</AlertTitle>
+                  <AlertDescription>
+                    Only organization administrators can view and manage WhatsApp credentials.
+                  </AlertDescription>
+                </Alert>
+              )}
+
               <div className="space-y-2">
                 <Label>Webhook URL</Label>
                 <div className="flex items-center gap-2">
@@ -331,59 +347,63 @@ export default function MerchantSettings() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="phoneNumberId">phone_number_id</Label>
-                  <Input
-                    id="phoneNumberId"
-                    value={phoneNumberId}
-                    onChange={(event) => setPhoneNumberId(event.target.value)}
-                    placeholder="e.g. 123456789012345"
-                  />
-                </div>
+              {isAdmin && (
+                <>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="phoneNumberId">phone_number_id</Label>
+                      <Input
+                        id="phoneNumberId"
+                        value={phoneNumberId}
+                        onChange={(event) => setPhoneNumberId(event.target.value)}
+                        placeholder="e.g. 123456789012345"
+                      />
+                    </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="verifyToken">verify_token</Label>
-                  <Input
-                    id="verifyToken"
-                    value={verifyToken}
-                    onChange={(event) => setVerifyToken(event.target.value)}
-                    placeholder="Webhook verify token"
-                  />
-                </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="verifyToken">verify_token</Label>
+                      <Input
+                        id="verifyToken"
+                        value={verifyToken}
+                        onChange={(event) => setVerifyToken(event.target.value)}
+                        placeholder="Webhook verify token"
+                      />
+                    </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="appSecret">app_secret</Label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      id="appSecret"
-                      type={showSecret ? "text" : "password"}
-                      value={appSecret}
-                      onChange={(event) => setAppSecret(event.target.value)}
-                      placeholder="Meta app secret"
-                    />
-                    <Button variant="ghost" size="icon" onClick={() => setShowSecret((value) => !value)}>
-                      {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </Button>
+                    <div className="space-y-2">
+                      <Label htmlFor="appSecret">app_secret</Label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          id="appSecret"
+                          type={showSecret ? "text" : "password"}
+                          value={appSecret}
+                          onChange={(event) => setAppSecret(event.target.value)}
+                          placeholder="Meta app secret"
+                        />
+                        <Button variant="ghost" size="icon" onClick={() => setShowSecret((value) => !value)}>
+                          {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="accessToken">access_token</Label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          id="accessToken"
+                          type={showToken ? "text" : "password"}
+                          value={accessToken}
+                          onChange={(event) => setAccessToken(event.target.value)}
+                          placeholder="Meta access token"
+                        />
+                        <Button variant="ghost" size="icon" onClick={() => setShowToken((value) => !value)}>
+                          {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                    </div>
                   </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="accessToken">access_token</Label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      id="accessToken"
-                      type={showToken ? "text" : "password"}
-                      value={accessToken}
-                      onChange={(event) => setAccessToken(event.target.value)}
-                      placeholder="Meta access token"
-                    />
-                    <Button variant="ghost" size="icon" onClick={() => setShowToken((value) => !value)}>
-                      {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </Button>
-                  </div>
-                </div>
-              </div>
+                </>
+              )}
 
               <div className="flex flex-wrap items-center gap-2">
                 <StepStatus ok={merchantSettings?.credentials_valid ?? null} label="Access token validation" />
@@ -400,15 +420,17 @@ export default function MerchantSettings() {
                 </Alert>
               )}
 
-              <div className="flex items-center gap-2">
-                <Button
-                  onClick={() => void handleValidateCredentials()}
-                  disabled={updateMerchant.isPending || onboardingCheck.isPending}
-                >
-                  {onboardingCheck.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-                  Save and Validate Step 1
-                </Button>
-              </div>
+              {isAdmin && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    onClick={() => void handleValidateCredentials()}
+                    disabled={updateCredentials.isPending || onboardingCheck.isPending}
+                  >
+                    {onboardingCheck.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+                    Save and Validate Step 1
+                  </Button>
+                </div>
+              )}
             </section>
 
             <Separator />
