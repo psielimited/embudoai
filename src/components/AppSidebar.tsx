@@ -56,7 +56,7 @@ export function AppSidebar() {
         (item.url !== "/" && !items.some(other => other.url !== item.url && other.url.startsWith(item.url) && location.pathname.startsWith(other.url)) && location.pathname.startsWith(item.url));
       return (
         <SidebarMenuItem key={item.title}>
-          <SidebarMenuButton asChild>
+          <SidebarMenuButton asChild tooltip={item.title}>
             <NavLink
               to={item.url}
               className={cn(
@@ -67,9 +67,9 @@ export function AppSidebar() {
               )}
             >
               <item.icon className="h-4 w-4" />
-              <span>{item.title}</span>
+              <span className="group-data-[collapsible=icon]:hidden">{item.title}</span>
               {item.url === "/conversations" && (unreadCounts?.totalUnread ?? 0) > 0 && (
-                <Badge className="ml-auto h-5 min-w-5 px-1.5 text-[10px]">
+                <Badge className="ml-auto h-5 min-w-5 px-1.5 text-[10px] group-data-[collapsible=icon]:hidden">
                   {unreadCounts?.totalUnread}
                 </Badge>
               )}
@@ -80,13 +80,13 @@ export function AppSidebar() {
     });
 
   return (
-    <Sidebar className="border-r border-sidebar-border">
+    <Sidebar collapsible="icon" className="border-r border-sidebar-border">
       <SidebarHeader className="border-b border-sidebar-border px-6 py-4">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
             <MessageSquare className="h-4 w-4 text-primary-foreground" />
           </div>
-          <div>
+          <div className="group-data-[collapsible=icon]:hidden">
             <h1 className="font-semibold text-sidebar-foreground">Embudex</h1>
             <p className="text-xs text-muted-foreground">CRM Dashboard</p>
           </div>

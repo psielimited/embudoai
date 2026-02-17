@@ -113,6 +113,15 @@ export default function MerchantSettings() {
   }, [merchantSettings]);
 
   const plan = subscription?.subscription_plans;
+  const merchantLimit = (() => {
+    const normalized = (plan?.name ?? "").toLowerCase();
+    if (normalized.includes("free")) return 1;
+    if (normalized.includes("starter")) return 1;
+    if (normalized.includes("growth")) return 2;
+    if (normalized.includes("pro")) return null;
+    return 1;
+  })();
+  const isSingleMerchantTier = merchantLimit === 1;
   const canRunConnectivityTest = !!subscription
     && (subscription.status === "active" || subscription.status === "trial")
     && !trialExpired
@@ -273,13 +282,19 @@ export default function MerchantSettings() {
         <Card>
           <CardHeader>
             <CardTitle>Merchant Status</CardTitle>
-            <CardDescription>Toggle whether this merchant is active in your workspace.</CardDescription>
+            <CardDescription>
+              {isSingleMerchantTier
+                ? "Single-merchant tier: keep one active merchant at a time."
+                : "Toggle whether this merchant is active in your workspace."}
+            </CardDescription>
           </CardHeader>
           <CardContent className="flex items-center justify-between gap-4">
             <div>
               <p className="font-medium">{merchant?.status === "active" ? "Active" : "Inactive"}</p>
               <p className="text-sm text-muted-foreground">
-                Inactive merchants are hidden by default from merchant list views.
+                {isSingleMerchantTier
+                  ? "Archiving this merchant frees your single active merchant slot."
+                  : "Inactive merchants are hidden by default from merchant list views."}
               </p>
             </div>
             <Switch
@@ -541,23 +556,31 @@ export default function MerchantSettings() {
         <Card className="border-destructive/40">
           <CardHeader>
             <CardTitle className="text-destructive">Danger Zone</CardTitle>
-            <CardDescription>Archive this merchant. You can reactivate later from the status toggle.</CardDescription>
+            <CardDescription>
+              {isSingleMerchantTier
+                ? "Archive this merchant to free your single active slot. You can reactivate later."
+                : "Archive this merchant. You can reactivate later from the status toggle."}
+            </CardDescription>
           </CardHeader>
           <CardContent className="flex items-center justify-between gap-4">
             <p className="text-sm text-muted-foreground">
-              Archiving hides this merchant from default list views and marks it inactive.
+              {isSingleMerchantTier
+                ? "Archiving marks this merchant inactive and pauses activity until you reactivate it or activate another merchant."
+                : "Archiving hides this merchant from default list views and marks it inactive."}
             </p>
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="destructive" disabled={merchant?.status === "inactive" || deactivateMerchant.isPending}>
-                  Deactivate Merchant
+                  Archive Merchant
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Deactivate {merchant?.name}?</AlertDialogTitle>
+                  <AlertDialogTitle>Archive {merchant?.name}?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    This will archive the merchant and remove it from active lists until reactivated.
+                    {isSingleMerchantTier
+                      ? "This will archive the merchant and free your single active merchant slot until you reactivate or create another merchant."
+                      : "This will archive the merchant and remove it from active lists until reactivated."}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -566,7 +589,7 @@ export default function MerchantSettings() {
                     className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                     onClick={() => void handleDeactivate()}
                   >
-                    Confirm Deactivate
+                    Confirm Archive
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>

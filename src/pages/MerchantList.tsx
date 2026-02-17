@@ -297,7 +297,7 @@ export default function MerchantList() {
 
       {!canCreateMerchant && (
         <p className="mb-4 text-sm text-amber-700">
-          {merchantLimitMessage} Upgrade your plan to add more merchants.
+          {merchantLimitMessage} Archive an active merchant to free a slot, or upgrade your plan to add more.
         </p>
       )}
 
