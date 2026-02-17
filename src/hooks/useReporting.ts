@@ -1,5 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useActiveOrg } from "@/hooks/useOrg";
+import type { Database } from "@/integrations/supabase/types";
+
+export type ConversationTimelineEvent =
+  Database["public"]["Views"]["conversation_timeline_view"]["Row"];
 
 export function useAnalyticsDaily(days = 30) {
   return useQuery({
@@ -109,5 +114,60 @@ export function useUnreadNotificationCount() {
       return count ?? 0;
     },
     refetchInterval: 30000,
+  });
+}
+
+export function useConversationTimeline(conversationId?: string) {
+  return useQuery({
+    queryKey: ["conversation-timeline", conversationId],
+    enabled: !!conversationId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("conversation_timeline_view")
+        .select("*")
+        .eq("conversation_id", conversationId!)
+        .order("created_at", { ascending: true });
+
+      if (error) throw error;
+      return (data ?? []) as ConversationTimelineEvent[];
+    },
+  });
+}
+
+export function useOpsTimelineErrors(filters?: {
+  functionName?: string;
+  merchantId?: string;
+}) {
+  const { data: orgId } = useActiveOrg();
+
+  return useQuery({
+    queryKey: [
+      "ops-timeline-errors",
+      orgId ?? null,
+      filters?.functionName ?? "all",
+      filters?.merchantId ?? "all",
+    ],
+    enabled: !!orgId,
+    queryFn: async () => {
+      let query = supabase
+        .from("conversation_timeline_view")
+        .select("*")
+        .eq("org_id", orgId!)
+        .eq("severity", "error")
+        .order("created_at", { ascending: false })
+        .limit(200);
+
+      if (filters?.functionName && filters.functionName !== "all") {
+        query = query.eq("metadata->>function_name", filters.functionName);
+      }
+
+      if (filters?.merchantId && filters.merchantId !== "all") {
+        query = query.eq("metadata->>merchant_id", filters.merchantId);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return (data ?? []) as ConversationTimelineEvent[];
+    },
   });
 }

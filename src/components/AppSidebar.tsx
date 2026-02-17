@@ -29,6 +29,7 @@ const pipelineNav = [
 const monitoringNav = [
   { title: "SLA Breaches", url: "/dashboard/sla", icon: AlertTriangle },
   { title: "Reports", url: "/dashboard/reports", icon: FileSpreadsheet },
+  { title: "Ops Console", url: "/ops", icon: AlertTriangle },
   { title: "Imports", url: "/imports", icon: Upload },
 ];
 

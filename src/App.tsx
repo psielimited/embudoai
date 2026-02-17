@@ -23,6 +23,7 @@ const OpportunityDetail = React.lazy(() => import("@/pages/OpportunityDetail"));
 const AutomationRules = React.lazy(() => import("@/pages/AutomationRules"));
 const SlaBreaches = React.lazy(() => import("@/pages/SlaBreaches"));
 const Reports = React.lazy(() => import("@/pages/Reports"));
+const OpsConsole = React.lazy(() => import("@/pages/OpsConsole"));
 const OrgSettings = React.lazy(() => import("@/pages/OrgSettings"));
 const OrgUsers = React.lazy(() => import("@/pages/OrgUsers"));
 const OrgTeams = React.lazy(() => import("@/pages/OrgTeams"));
@@ -75,6 +76,7 @@ const App = () => (
             <Route path="/automation" element={<ProtectedDashboard><AutomationRules /></ProtectedDashboard>} />
             <Route path="/dashboard/sla" element={<ProtectedDashboard><SlaBreaches /></ProtectedDashboard>} />
             <Route path="/dashboard/reports" element={<ProtectedDashboard><Reports /></ProtectedDashboard>} />
+            <Route path="/ops" element={<ProtectedDashboard><OpsConsole /></ProtectedDashboard>} />
             <Route path="/org/settings" element={<ProtectedDashboard><OrgSettings /></ProtectedDashboard>} />
             <Route path="/org/users" element={<ProtectedDashboard><OrgUsers /></ProtectedDashboard>} />
             <Route path="/org/teams" element={<ProtectedDashboard><OrgTeams /></ProtectedDashboard>} />

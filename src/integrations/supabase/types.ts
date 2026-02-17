@@ -211,6 +211,7 @@ export type Database = {
           processed_at: string | null
           provider: string
           provider_event_id: string
+          severity: string
         }
         Insert: {
           channel: string
@@ -224,6 +225,7 @@ export type Database = {
           processed_at?: string | null
           provider: string
           provider_event_id: string
+          severity?: string
         }
         Update: {
           channel?: string
@@ -237,6 +239,7 @@ export type Database = {
           processed_at?: string | null
           provider?: string
           provider_event_id?: string
+          severity?: string
         }
         Relationships: [
           {
@@ -1117,11 +1120,15 @@ export type Database = {
           conversation_id: string
           created_at: string
           id: string
+          idempotency_key: string
           last_error: string | null
+          max_retries: number
           merchant_id: string
           message_id: string
+          next_retry_at: string | null
           org_id: string
           provider: string
+          retry_count: number
           status: string
           updated_at: string
         }
@@ -1131,11 +1138,15 @@ export type Database = {
           conversation_id: string
           created_at?: string
           id?: string
+          idempotency_key: string
           last_error?: string | null
+          max_retries?: number
           merchant_id: string
           message_id: string
+          next_retry_at?: string | null
           org_id: string
           provider: string
+          retry_count?: number
           status?: string
           updated_at?: string
         }
@@ -1145,11 +1156,15 @@ export type Database = {
           conversation_id?: string
           created_at?: string
           id?: string
+          idempotency_key?: string
           last_error?: string | null
+          max_retries?: number
           merchant_id?: string
           message_id?: string
+          next_retry_at?: string | null
           org_id?: string
           provider?: string
+          retry_count?: number
           status?: string
           updated_at?: string
         }
@@ -1499,6 +1514,34 @@ export type Database = {
       }
     }
     Views: {
+      conversation_timeline_view: {
+        Row: {
+          conversation_id: string | null
+          created_at: string | null
+          event_type: string | null
+          id: string | null
+          metadata: Json | null
+          org_id: string | null
+          severity: string | null
+          source_type: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_events_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_events_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       v_funnel_counts: {
         Row: {
           day: string | null

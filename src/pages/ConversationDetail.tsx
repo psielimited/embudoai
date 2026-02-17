@@ -6,6 +6,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { EmptyState } from "@/components/EmptyState";
 import { MessageBubble } from "@/components/MessageBubble";
 import { ConversationWorkflow } from "@/components/ConversationWorkflow";
+import { ConversationTimeline } from "@/components/ConversationTimeline";
 import { useMerchant } from "@/hooks/useMerchants";
 import { useConversation } from "@/hooks/useConversations";
 import { useMessages } from "@/hooks/useMessages";
@@ -161,12 +162,14 @@ export default function ConversationDetail() {
   const handleSendMessage = useCallback(async (messageId: string) => {
     setSendingMessageId(messageId);
     try {
-      const data = await callEdge<{ ok?: boolean; error?: string }>("send-whatsapp-message", {
+      const data = await callEdge<{ ok?: boolean; error?: string; send_status?: string }>("send-whatsapp-message", {
         message_id: messageId,
       });
 
       if (data.ok) {
         toast.success("Message sent via WhatsApp");
+      } else if (data.send_status === "queued") {
+        toast.message("Send queued", { description: "Temporary provider issue. Retry scheduled automatically." });
       } else {
         toast.error(data.error || "Failed to send message");
       }
@@ -224,15 +227,18 @@ export default function ConversationDetail() {
 
       if (insertError) throw insertError;
 
-      const result = await callEdge<{ ok?: boolean; error?: string }>("send-whatsapp-message", {
+      const result = await callEdge<{ ok?: boolean; error?: string; send_status?: string }>("send-whatsapp-message", {
         message_id: message.id,
       });
 
-      if (!result.ok) {
-        toast.error(result.error || "Failed to send reply");
-      } else {
+      if (result.ok) {
         toast.success("Reply sent");
         setManualReply("");
+      } else if (result.send_status === "queued") {
+        toast.message("Reply queued", { description: "Temporary provider issue. Retry scheduled automatically." });
+        setManualReply("");
+      } else {
+        toast.error(result.error || "Failed to send reply");
       }
 
       queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
@@ -464,6 +470,9 @@ export default function ConversationDetail() {
           </div>
         </CardContent>
       </Card>
+      <div className="mt-6">
+        <ConversationTimeline conversationId={conversationId} />
+      </div>
     </>
   );
 }
