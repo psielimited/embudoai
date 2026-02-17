@@ -40,7 +40,9 @@ Deno.serve(async (req) => {
       const trialExpired = subscription?.status === "trial"
         && !!subscription?.trial_ends_at
         && new Date(subscription.trial_ends_at).getTime() <= Date.now();
-      const slaEnabledByPlan = subscription?.subscription_plans?.sla_monitoring_enabled ?? false;
+      const plans = subscription?.subscription_plans;
+      const plan = Array.isArray(plans) ? plans[0] : plans;
+      const slaEnabledByPlan = plan?.sla_monitoring_enabled ?? false;
       const activeState = ["active", "trial"].includes(subscription?.status ?? "trial") && !trialExpired;
 
       if (!slaEnabledByPlan || !activeState) {

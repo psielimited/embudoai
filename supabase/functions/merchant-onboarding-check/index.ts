@@ -190,7 +190,9 @@ Deno.serve(async (req) => {
 
       const status = subscription?.status ?? "trial";
       const trialExpired = status === "trial" && !!subscription?.trial_ends_at && new Date(subscription.trial_ends_at).getTime() <= Date.now();
-      const messageLimit = subscription?.subscription_plans?.message_limit ?? 0;
+      const plans2 = subscription?.subscription_plans;
+      const plan2 = Array.isArray(plans2) ? plans2[0] : plans2;
+      const messageLimit = plan2?.message_limit ?? 0;
       const messagesUsed = subscription?.messages_used ?? 0;
       const overQuota = messageLimit > 0 && messagesUsed >= messageLimit;
 

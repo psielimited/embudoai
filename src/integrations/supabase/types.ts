@@ -782,50 +782,6 @@ export type Database = {
           },
         ]
       }
-      merchants: {
-        Row: {
-          created_at: string
-          id: string
-          name: string
-          org_id: string
-          status: string
-          whatsapp_access_token: string | null
-          whatsapp_app_secret: string | null
-          whatsapp_phone_number_id: string | null
-          whatsapp_verify_token: string | null
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          name: string
-          org_id: string
-          status?: string
-          whatsapp_access_token?: string | null
-          whatsapp_app_secret?: string | null
-          whatsapp_phone_number_id?: string | null
-          whatsapp_verify_token?: string | null
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          name?: string
-          org_id?: string
-          status?: string
-          whatsapp_access_token?: string | null
-          whatsapp_app_secret?: string | null
-          whatsapp_phone_number_id?: string | null
-          whatsapp_verify_token?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "merchants_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "orgs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       merchant_settings: {
         Row: {
           connectivity_inbound_last_checked_at: string | null
@@ -930,6 +886,50 @@ export type Database = {
           },
           {
             foreignKeyName: "merchant_settings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      merchants: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          org_id: string
+          status: string
+          whatsapp_access_token: string | null
+          whatsapp_app_secret: string | null
+          whatsapp_phone_number_id: string | null
+          whatsapp_verify_token: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          org_id: string
+          status?: string
+          whatsapp_access_token?: string | null
+          whatsapp_app_secret?: string | null
+          whatsapp_phone_number_id?: string | null
+          whatsapp_verify_token?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          org_id?: string
+          status?: string
+          whatsapp_access_token?: string | null
+          whatsapp_app_secret?: string | null
+          whatsapp_phone_number_id?: string | null
+          whatsapp_verify_token?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "merchants_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "orgs"
@@ -1168,6 +1168,42 @@ export type Database = {
           },
         ]
       }
+      org_message_usage_ledger: {
+        Row: {
+          created_at: string
+          id: string
+          message_id: string
+          org_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message_id: string
+          org_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message_id?: string
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_message_usage_ledger_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: true
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_message_usage_ledger_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       org_settings: {
         Row: {
           created_at: string
@@ -1201,60 +1237,6 @@ export type Database = {
             foreignKeyName: "org_settings_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: true
-            referencedRelation: "orgs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      orgs: {
-        Row: {
-          created_at: string
-          id: string
-          name: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          name: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          name?: string
-        }
-        Relationships: []
-      }
-      org_message_usage_ledger: {
-        Row: {
-          created_at: string
-          id: string
-          message_id: string
-          org_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          message_id: string
-          org_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          message_id?: string
-          org_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "org_message_usage_ledger_message_id_fkey"
-            columns: ["message_id"]
-            isOneToOne: true
-            referencedRelation: "messages"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "org_message_usage_ledger_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
             referencedRelation: "orgs"
             referencedColumns: ["id"]
           },
@@ -1313,6 +1295,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      orgs: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
       }
       outbound_jobs: {
         Row: {
@@ -1399,48 +1399,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      subscription_plans: {
-        Row: {
-          ai_enabled: boolean
-          automation_enabled: boolean
-          catalog_enabled: boolean
-          created_at: string
-          id: string
-          message_limit: number
-          monthly_price: number
-          multi_user_enabled: boolean
-          name: string
-          sla_monitoring_enabled: boolean
-          support_level: string
-        }
-        Insert: {
-          ai_enabled?: boolean
-          automation_enabled?: boolean
-          catalog_enabled?: boolean
-          created_at?: string
-          id?: string
-          message_limit?: number
-          monthly_price?: number
-          multi_user_enabled?: boolean
-          name: string
-          sla_monitoring_enabled?: boolean
-          support_level?: string
-        }
-        Update: {
-          ai_enabled?: boolean
-          automation_enabled?: boolean
-          catalog_enabled?: boolean
-          created_at?: string
-          id?: string
-          message_limit?: number
-          monthly_price?: number
-          multi_user_enabled?: boolean
-          name?: string
-          sla_monitoring_enabled?: boolean
-          support_level?: string
-        }
-        Relationships: []
       }
       pipelines: {
         Row: {
@@ -1643,6 +1601,48 @@ export type Database = {
           },
         ]
       }
+      subscription_plans: {
+        Row: {
+          ai_enabled: boolean
+          automation_enabled: boolean
+          catalog_enabled: boolean
+          created_at: string
+          id: string
+          message_limit: number
+          monthly_price: number
+          multi_user_enabled: boolean
+          name: string
+          sla_monitoring_enabled: boolean
+          support_level: string
+        }
+        Insert: {
+          ai_enabled?: boolean
+          automation_enabled?: boolean
+          catalog_enabled?: boolean
+          created_at?: string
+          id?: string
+          message_limit?: number
+          monthly_price?: number
+          multi_user_enabled?: boolean
+          name: string
+          sla_monitoring_enabled?: boolean
+          support_level?: string
+        }
+        Update: {
+          ai_enabled?: boolean
+          automation_enabled?: boolean
+          catalog_enabled?: boolean
+          created_at?: string
+          id?: string
+          message_limit?: number
+          monthly_price?: number
+          multi_user_enabled?: boolean
+          name?: string
+          sla_monitoring_enabled?: boolean
+          support_level?: string
+        }
+        Relationships: []
+      }
       tasks: {
         Row: {
           assigned_to: string | null
@@ -1842,10 +1842,6 @@ export type Database = {
       }
     }
     Functions: {
-      increment_org_messages_used: {
-        Args: { p_message_id?: string; p_org_id: string }
-        Returns: boolean
-      }
       get_active_org_id: { Args: never; Returns: string }
       get_my_manager: { Args: never; Returns: string }
       get_my_role: {
@@ -1853,9 +1849,13 @@ export type Database = {
         Returns: Database["public"]["Enums"]["app_role"]
       }
       get_org_role: { Args: { p_org_id: string }; Returns: string }
-      reset_subscription_message_usage: { Args: never; Returns: number }
       get_team_user_ids: { Args: { p_org_id: string }; Returns: string[] }
+      increment_org_messages_used: {
+        Args: { p_message_id?: string; p_org_id: string }
+        Returns: boolean
+      }
       is_org_member: { Args: { p_org_id: string }; Returns: boolean }
+      reset_subscription_message_usage: { Args: never; Returns: number }
       rpc_move_opportunity_stage: {
         Args: {
           p_actor_user_id: string
