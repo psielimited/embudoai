@@ -39,8 +39,9 @@ function truncateError(payload: unknown) {
   return JSON.stringify(payload).slice(0, 500);
 }
 
+// deno-lint-ignore no-explicit-any
 async function emitRetryExhaustedEvent(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   params: {
     orgId: string;
     merchantId: string;
