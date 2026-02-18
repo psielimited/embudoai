@@ -10,37 +10,53 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { PageSkeleton } from "@/components/PageSkeleton";
 import { SubscriptionGuard } from "@/components/SubscriptionGuard";
 
-const LandingPage = React.lazy(() => import("@/pages/LandingPage"));
-const PricingPage = React.lazy(() => import("@/pages/PricingPage"));
-const Signup = React.lazy(() => import("@/pages/Signup"));
-const Billing = React.lazy(() => import("@/pages/Billing"));
-const AuthCallback = React.lazy(() => import("@/pages/AuthCallback"));
-const PrivacyPolicy = React.lazy(() => import("@/pages/PrivacyPolicy"));
-const DataDeletionPolicy = React.lazy(() => import("@/pages/DataDeletionPolicy"));
-const Dashboard = React.lazy(() => import("@/pages/Dashboard"));
-const MerchantList = React.lazy(() => import("@/pages/MerchantList"));
-const MerchantConversations = React.lazy(() => import("@/pages/MerchantConversations"));
-const ConversationDetail = React.lazy(() => import("@/pages/ConversationDetail"));
-const PipelineBoard = React.lazy(() => import("@/pages/PipelineBoard"));
-const PipelineSettings = React.lazy(() => import("@/pages/PipelineSettings"));
-const OpportunityDetail = React.lazy(() => import("@/pages/OpportunityDetail"));
-const AutomationRules = React.lazy(() => import("@/pages/AutomationRules"));
-const SlaBreaches = React.lazy(() => import("@/pages/SlaBreaches"));
-const Reports = React.lazy(() => import("@/pages/Reports"));
-const OpsConsole = React.lazy(() => import("@/pages/OpsConsole"));
-const OrgSettings = React.lazy(() => import("@/pages/OrgSettings"));
-const OrgUsers = React.lazy(() => import("@/pages/OrgUsers"));
-const OrgTeams = React.lazy(() => import("@/pages/OrgTeams"));
-const LeadList = React.lazy(() => import("@/pages/LeadList"));
-const LeadDetail = React.lazy(() => import("@/pages/LeadDetail"));
-const ContactList = React.lazy(() => import("@/pages/ContactList"));
-const ContactDetail = React.lazy(() => import("@/pages/ContactDetail"));
-const Conversations = React.lazy(() => import("@/pages/Conversations"));
-const ImportLeads = React.lazy(() => import("@/pages/ImportLeads"));
-const MerchantSettings = React.lazy(() => import("@/pages/MerchantSettings"));
-const Onboarding = React.lazy(() => import("@/pages/Onboarding"));
-const Login = React.lazy(() => import("@/pages/Login"));
-const NotFound = React.lazy(() => import("@/pages/NotFound"));
+function lazyRetry(factory: () => Promise<{ default: React.ComponentType<any> }>) {
+  return React.lazy(() =>
+    factory().catch((err) => {
+      // If chunk fails to load, reload the page once
+      const key = "chunk_reload";
+      if (!sessionStorage.getItem(key)) {
+        sessionStorage.setItem(key, "1");
+        window.location.reload();
+        return new Promise(() => {}); // never resolves, page will reload
+      }
+      sessionStorage.removeItem(key);
+      throw err;
+    })
+  );
+}
+
+const LandingPage = lazyRetry(() => import("@/pages/LandingPage"));
+const PricingPage = lazyRetry(() => import("@/pages/PricingPage"));
+const Signup = lazyRetry(() => import("@/pages/Signup"));
+const Billing = lazyRetry(() => import("@/pages/Billing"));
+const AuthCallback = lazyRetry(() => import("@/pages/AuthCallback"));
+const PrivacyPolicy = lazyRetry(() => import("@/pages/PrivacyPolicy"));
+const DataDeletionPolicy = lazyRetry(() => import("@/pages/DataDeletionPolicy"));
+const Dashboard = lazyRetry(() => import("@/pages/Dashboard"));
+const MerchantList = lazyRetry(() => import("@/pages/MerchantList"));
+const MerchantConversations = lazyRetry(() => import("@/pages/MerchantConversations"));
+const ConversationDetail = lazyRetry(() => import("@/pages/ConversationDetail"));
+const PipelineBoard = lazyRetry(() => import("@/pages/PipelineBoard"));
+const PipelineSettings = lazyRetry(() => import("@/pages/PipelineSettings"));
+const OpportunityDetail = lazyRetry(() => import("@/pages/OpportunityDetail"));
+const AutomationRules = lazyRetry(() => import("@/pages/AutomationRules"));
+const SlaBreaches = lazyRetry(() => import("@/pages/SlaBreaches"));
+const Reports = lazyRetry(() => import("@/pages/Reports"));
+const OpsConsole = lazyRetry(() => import("@/pages/OpsConsole"));
+const OrgSettings = lazyRetry(() => import("@/pages/OrgSettings"));
+const OrgUsers = lazyRetry(() => import("@/pages/OrgUsers"));
+const OrgTeams = lazyRetry(() => import("@/pages/OrgTeams"));
+const LeadList = lazyRetry(() => import("@/pages/LeadList"));
+const LeadDetail = lazyRetry(() => import("@/pages/LeadDetail"));
+const ContactList = lazyRetry(() => import("@/pages/ContactList"));
+const ContactDetail = lazyRetry(() => import("@/pages/ContactDetail"));
+const Conversations = lazyRetry(() => import("@/pages/Conversations"));
+const ImportLeads = lazyRetry(() => import("@/pages/ImportLeads"));
+const MerchantSettings = lazyRetry(() => import("@/pages/MerchantSettings"));
+const Onboarding = lazyRetry(() => import("@/pages/Onboarding"));
+const Login = lazyRetry(() => import("@/pages/Login"));
+const NotFound = lazyRetry(() => import("@/pages/NotFound"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
