@@ -113,7 +113,7 @@ Deno.serve(async (req) => {
       }
 
       const tokenCheck = await graphGet(
-        `${merchant.whatsapp_phone_number_id}?fields=id,display_phone_number,verified_name,whatsapp_business_account`,
+        `${merchant.whatsapp_phone_number_id}?fields=id,display_phone_number,verified_name`,
         merchant.whatsapp_access_token,
       );
 
@@ -134,7 +134,9 @@ Deno.serve(async (req) => {
       };
 
       if (tokenValid) {
-        const wabaId = tokenCheck.body?.whatsapp_business_account?.id as string | undefined;
+        // Keep template stats best-effort; do not fail credential validation if WABA id is unavailable.
+        const wabaId = (tokenCheck.body?.whatsapp_business_account?.id
+          ?? tokenCheck.body?.whatsapp_business_account_id) as string | undefined;
         if (wabaId) {
           const tplRes = await graphGet(`${wabaId}/message_templates?fields=name,status&limit=100`, merchant.whatsapp_access_token);
           if (tplRes.ok) {
