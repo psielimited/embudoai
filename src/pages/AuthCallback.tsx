@@ -24,7 +24,34 @@ async function resolveDestination() {
     .select("id", { count: "exact", head: true })
     .eq("org_id", activeOrgId);
 
-  return (count ?? 0) > 0 ? "/merchants" : "/onboarding";
+  if ((count ?? 0) === 0) return "/onboarding";
+
+  const { data: merchants } = await supabase
+    .from("merchants")
+    .select("id,status,created_at")
+    .eq("org_id", activeOrgId)
+    .order("created_at", { ascending: true });
+
+  const primaryMerchant = (merchants ?? []).find((merchant) => merchant.status === "active") ?? merchants?.[0] ?? null;
+  if (!primaryMerchant) return "/onboarding";
+
+  const { data: settings } = await supabase
+    .from("merchant_settings")
+    .select("onboarding_step,credentials_valid,webhook_challenge_valid,connectivity_outbound_ok,connectivity_inbound_ok")
+    .eq("merchant_id", primaryMerchant.id)
+    .eq("org_id", activeOrgId)
+    .maybeSingle();
+
+  const merchantSetupComplete = Boolean(
+    settings
+      && settings.onboarding_step >= 3
+      && settings.credentials_valid
+      && settings.webhook_challenge_valid
+      && settings.connectivity_outbound_ok
+      && settings.connectivity_inbound_ok,
+  );
+
+  return merchantSetupComplete ? "/merchants" : `/merchants/${primaryMerchant.id}/settings`;
 }
 
 export default function AuthCallback() {

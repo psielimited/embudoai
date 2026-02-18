@@ -24,6 +24,8 @@ import {
   useUpdateMerchantCredentials,
 } from "@/hooks/useMerchants";
 import { useActiveOrg, useOrgPlanStatus } from "@/hooks/useOrg";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -77,6 +79,7 @@ function formatTs(ts: string | null | undefined) {
 export default function MerchantSettings() {
   const { merchantId } = useParams<{ merchantId: string }>();
   const navigate = useNavigate();
+  const { signOut } = useAuth();
   const { data: merchant, isLoading } = useMerchant(merchantId!);
   const { data: merchantSettings } = useMerchantSettings(merchantId);
   const { data: credentials, isLoading: credentialsLoading } = useMerchantCredentials(merchantId);
@@ -131,8 +134,17 @@ export default function MerchantSettings() {
       || overQuota
       || (subscription?.status === "trial" && (trialDaysRemaining ?? 99) < 3),
   );
-
+  const merchantWizardComplete = Boolean(
+    merchantSettings
+      && merchantSettings.onboarding_step >= 3
+      && merchantSettings.credentials_valid
+      && merchantSettings.webhook_challenge_valid
+      && merchantSettings.connectivity_outbound_ok
+      && merchantSettings.connectivity_inbound_ok,
+  );
+  const isMerchantSetupPending = !merchantWizardComplete;
   const isAdmin = credentials !== null;
+  const canEditCredentials = isAdmin || isMerchantSetupPending;
 
   const handleSaveCredentials = async () => {
     if (!merchantId) return;
@@ -150,9 +162,27 @@ export default function MerchantSettings() {
 
   const handleValidateCredentials = async () => {
     if (!merchantId) return;
+    const missing: string[] = [];
+    if (!phoneNumberId.trim()) missing.push("phone_number_id");
+    if (!accessToken.trim()) missing.push("access_token");
+    if (!verifyToken.trim()) missing.push("verify_token");
+    if (missing.length > 0) {
+      toast.error(`Please enter: ${missing.join(", ")}`);
+      return;
+    }
 
     try {
       await handleSaveCredentials();
+      const { data: persisted, error: persistedError } = await supabase
+        .from("merchants")
+        .select("whatsapp_phone_number_id,whatsapp_access_token,whatsapp_verify_token")
+        .eq("id", merchantId)
+        .maybeSingle();
+      if (persistedError) throw persistedError;
+      if (!persisted?.whatsapp_phone_number_id || !persisted?.whatsapp_access_token || !persisted?.whatsapp_verify_token) {
+        toast.error("Credentials could not be persisted yet. Please save again or check permissions.");
+        return;
+      }
       const result = await onboardingCheck.mutateAsync({
         merchantId,
         action: "validate_credentials",
@@ -249,6 +279,15 @@ export default function MerchantSettings() {
     }
   };
 
+  const handleSignOut = async () => {
+    const { error } = await signOut();
+    if (error) {
+      toast.error(error.message || "Failed to sign out");
+      return;
+    }
+    navigate("/login", { replace: true });
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -259,17 +298,23 @@ export default function MerchantSettings() {
 
   return (
     <>
-      <PageHeader
-        title={`${merchant?.name ?? "Merchant"} Settings`}
-        breadcrumbs={[
-          { label: "Merchants", href: "/merchants" },
-          { label: merchant?.name ?? "...", href: `/merchants/${merchantId}/conversations` },
-          { label: "Settings" },
-        ]}
-      />
+      <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 lg:px-8 space-y-6">
+        <PageHeader
+          title={`${merchant?.name ?? "Merchant"} Settings`}
+          description={isMerchantSetupPending ? "Complete WhatsApp setup before accessing the dashboard." : undefined}
+          breadcrumbs={[
+            { label: "Merchants", href: "/merchants" },
+            { label: merchant?.name ?? "...", href: `/merchants/${merchantId}/conversations` },
+            { label: "Settings" },
+          ]}
+          actions={(
+            <Button variant="outline" onClick={() => void handleSignOut()}>
+              Log out
+            </Button>
+          )}
+        />
 
-      <div className="space-y-6">
-        {merchant?.status === "inactive" && (
+        {merchant?.status === "inactive" && !isMerchantSetupPending && (
           <Alert variant="destructive">
             <AlertTriangle className="h-4 w-4" />
             <AlertTitle>Inactive merchant</AlertTitle>
@@ -278,39 +323,6 @@ export default function MerchantSettings() {
             </AlertDescription>
           </Alert>
         )}
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Merchant Status</CardTitle>
-            <CardDescription>
-              {isSingleMerchantTier
-                ? "Single-merchant tier: keep one active merchant at a time."
-                : "Toggle whether this merchant is active in your workspace."}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex items-center justify-between gap-4">
-            <div>
-              <p className="font-medium">{merchant?.status === "active" ? "Active" : "Inactive"}</p>
-              <p className="text-sm text-muted-foreground">
-                {isSingleMerchantTier
-                  ? "Archiving this merchant frees your single active merchant slot."
-                  : "Inactive merchants are hidden by default from merchant list views."}
-              </p>
-            </div>
-            <Switch
-              checked={merchant?.status === "active"}
-              onCheckedChange={handleStatusToggle}
-              disabled={updateMerchant.isPending || deactivateMerchant.isPending}
-            />
-          </CardContent>
-        </Card>
-
-        <PlanSummary
-          subscription={subscription}
-          trialDaysRemaining={trialDaysRemaining}
-          overQuota={overQuota}
-          showUpgradeCta={showUpgradeCta}
-        />
 
         <Card>
           <CardHeader>
@@ -334,8 +346,23 @@ export default function MerchantSettings() {
 
             <section className="space-y-4">
               <h3 className="text-sm font-semibold">Step 1 - Credential Entry</h3>
+              <div className="rounded-md border border-border bg-muted/30 p-3 text-sm space-y-1">
+                <p className="font-medium text-foreground">Where to find these values in Meta</p>
+                <p className="text-muted-foreground">
+                  <code>phone_number_id</code>: WhatsApp Manager {"->"} API Setup {"->"} Phone Number ID.
+                </p>
+                <p className="text-muted-foreground">
+                  <code>access_token</code>: Meta App {"->"} WhatsApp {"->"} API Setup {"->"} temporary or permanent access token.
+                </p>
+                <p className="text-muted-foreground">
+                  <code>app_secret</code>: Meta App Dashboard {"->"} Settings {"->"} Basic {"->"} App Secret.
+                </p>
+                <p className="text-muted-foreground">
+                  <code>verify_token</code>: your own secret phrase; use the exact same value in Meta webhook config and here.
+                </p>
+              </div>
 
-              {!isAdmin && !credentialsLoading && (
+              {!canEditCredentials && !credentialsLoading && (
                 <Alert>
                   <AlertTriangle className="h-4 w-4" />
                   <AlertTitle>Admin access required</AlertTitle>
@@ -362,62 +389,60 @@ export default function MerchantSettings() {
                 </div>
               </div>
 
-              {isAdmin && (
-                <>
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="phoneNumberId">phone_number_id</Label>
+              {canEditCredentials && (
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="phoneNumberId">phone_number_id</Label>
+                    <Input
+                      id="phoneNumberId"
+                      value={phoneNumberId}
+                      onChange={(event) => setPhoneNumberId(event.target.value)}
+                      placeholder="e.g. 123456789012345"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="verifyToken">verify_token</Label>
+                    <Input
+                      id="verifyToken"
+                      value={verifyToken}
+                      onChange={(event) => setVerifyToken(event.target.value)}
+                      placeholder="Webhook verify token"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="appSecret">app_secret</Label>
+                    <div className="flex items-center gap-2">
                       <Input
-                        id="phoneNumberId"
-                        value={phoneNumberId}
-                        onChange={(event) => setPhoneNumberId(event.target.value)}
-                        placeholder="e.g. 123456789012345"
+                        id="appSecret"
+                        type={showSecret ? "text" : "password"}
+                        value={appSecret}
+                        onChange={(event) => setAppSecret(event.target.value)}
+                        placeholder="Meta app secret"
                       />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="verifyToken">verify_token</Label>
-                      <Input
-                        id="verifyToken"
-                        value={verifyToken}
-                        onChange={(event) => setVerifyToken(event.target.value)}
-                        placeholder="Webhook verify token"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="appSecret">app_secret</Label>
-                      <div className="flex items-center gap-2">
-                        <Input
-                          id="appSecret"
-                          type={showSecret ? "text" : "password"}
-                          value={appSecret}
-                          onChange={(event) => setAppSecret(event.target.value)}
-                          placeholder="Meta app secret"
-                        />
-                        <Button variant="ghost" size="icon" onClick={() => setShowSecret((value) => !value)}>
-                          {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </Button>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="accessToken">access_token</Label>
-                      <div className="flex items-center gap-2">
-                        <Input
-                          id="accessToken"
-                          type={showToken ? "text" : "password"}
-                          value={accessToken}
-                          onChange={(event) => setAccessToken(event.target.value)}
-                          placeholder="Meta access token"
-                        />
-                        <Button variant="ghost" size="icon" onClick={() => setShowToken((value) => !value)}>
-                          {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </Button>
-                      </div>
+                      <Button type="button" variant="ghost" size="icon" onClick={() => setShowSecret((value) => !value)}>
+                        {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
                     </div>
                   </div>
-                </>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="accessToken">access_token</Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        id="accessToken"
+                        type={showToken ? "text" : "password"}
+                        value={accessToken}
+                        onChange={(event) => setAccessToken(event.target.value)}
+                        placeholder="Meta access token"
+                      />
+                      <Button type="button" variant="ghost" size="icon" onClick={() => setShowToken((value) => !value)}>
+                        {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
               )}
 
               <div className="flex flex-wrap items-center gap-2">
@@ -435,7 +460,7 @@ export default function MerchantSettings() {
                 </Alert>
               )}
 
-              {isAdmin && (
+              {canEditCredentials && (
                 <div className="flex items-center gap-2">
                   <Button
                     onClick={() => void handleValidateCredentials()}
@@ -452,13 +477,19 @@ export default function MerchantSettings() {
 
             <section className="space-y-4">
               <h3 className="text-sm font-semibold">Step 2 - Connectivity Test</h3>
+              <div className="rounded-md border border-border bg-muted/30 p-3 text-sm space-y-1">
+                <p className="font-medium text-foreground">Testing tips</p>
+                <p className="text-muted-foreground">Use a WhatsApp number that can receive test messages from your current Meta/WABA setup.</p>
+                <p className="text-muted-foreground">Send in E.164 format, for example: `18095551234`.</p>
+                <p className="text-muted-foreground">After sending outbound test, reply from that number and run inbound marker check.</p>
+              </div>
 
               <div className="rounded-md border border-border bg-muted/30 p-3 text-sm">
                 <p className="font-medium">Usage Panel</p>
                 <p className="text-muted-foreground">
                   {subscription?.messages_used ?? 0} / {plan?.message_limit ?? 0} messages used this cycle
                   {subscription?.status === "trial" && trialDaysRemaining !== null
-                    ? ` • Trial ends in ${Math.max(0, trialDaysRemaining)} day(s)`
+                    ? ` - Trial ends in ${Math.max(0, trialDaysRemaining)} day(s)`
                     : ""}
                 </p>
               </div>
@@ -553,55 +584,94 @@ export default function MerchantSettings() {
           </CardContent>
         </Card>
 
-        <Card className="border-destructive/40">
-          <CardHeader>
-            <CardTitle className="text-destructive">Danger Zone</CardTitle>
-            <CardDescription>
-              {isSingleMerchantTier
-                ? "Archive this merchant to free your single active slot. You can reactivate later."
-                : "Archive this merchant. You can reactivate later from the status toggle."}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex items-center justify-between gap-4">
-            <p className="text-sm text-muted-foreground">
-              {isSingleMerchantTier
-                ? "Archiving marks this merchant inactive and pauses activity until you reactivate it or activate another merchant."
-                : "Archiving hides this merchant from default list views and marks it inactive."}
-            </p>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive" disabled={merchant?.status === "inactive" || deactivateMerchant.isPending}>
-                  Archive Merchant
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Archive {merchant?.name}?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    {isSingleMerchantTier
-                      ? "This will archive the merchant and free your single active merchant slot until you reactivate or create another merchant."
-                      : "This will archive the merchant and remove it from active lists until reactivated."}
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                    onClick={() => void handleDeactivate()}
-                  >
-                    Confirm Archive
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </CardContent>
-        </Card>
+        <PlanSummary
+          subscription={subscription}
+          trialDaysRemaining={trialDaysRemaining}
+          overQuota={overQuota}
+          showUpgradeCta={showUpgradeCta}
+        />
 
-        <div>
-          <Button variant="outline" onClick={() => navigate(`/merchants/${merchantId}/conversations`)}>
-            Back to Conversations
-          </Button>
-        </div>
+        {!isMerchantSetupPending && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Merchant Status</CardTitle>
+              <CardDescription>
+                {isSingleMerchantTier
+                  ? "Single-merchant tier: keep one active merchant at a time."
+                  : "Toggle whether this merchant is active in your workspace."}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex items-center justify-between gap-4">
+              <div>
+                <p className="font-medium">{merchant?.status === "active" ? "Active" : "Inactive"}</p>
+                <p className="text-sm text-muted-foreground">
+                  {isSingleMerchantTier
+                    ? "Archiving this merchant frees your single active merchant slot."
+                    : "Inactive merchants are hidden by default from merchant list views."}
+                </p>
+              </div>
+              <Switch
+                checked={merchant?.status === "active"}
+                onCheckedChange={handleStatusToggle}
+                disabled={updateMerchant.isPending || deactivateMerchant.isPending}
+              />
+            </CardContent>
+          </Card>
+        )}
+
+        {!isMerchantSetupPending && (
+          <Card className="border-destructive/40">
+            <CardHeader>
+              <CardTitle className="text-destructive">Danger Zone</CardTitle>
+              <CardDescription>
+                {isSingleMerchantTier
+                  ? "Archive this merchant to free your single active slot. You can reactivate later."
+                  : "Archive this merchant. You can reactivate later from the status toggle."}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex items-center justify-between gap-4">
+              <p className="text-sm text-muted-foreground">
+                {isSingleMerchantTier
+                  ? "Archiving marks this merchant inactive and pauses activity until you reactivate it or activate another merchant."
+                  : "Archiving hides this merchant from default list views and marks it inactive."}
+              </p>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" disabled={merchant?.status === "inactive" || deactivateMerchant.isPending}>
+                    Archive Merchant
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Archive {merchant?.name}?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      {isSingleMerchantTier
+                        ? "This will archive the merchant and free your single active merchant slot until you reactivate or create another merchant."
+                        : "This will archive the merchant and remove it from active lists until reactivated."}
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      onClick={() => void handleDeactivate()}
+                    >
+                      Confirm Archive
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </CardContent>
+          </Card>
+        )}
+
+        {!isMerchantSetupPending && (
+          <div>
+            <Button variant="outline" onClick={() => navigate(`/merchants/${merchantId}/conversations`)}>
+              Back to Conversations
+            </Button>
+          </div>
+        )}
       </div>
     </>
   );

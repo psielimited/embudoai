@@ -14,12 +14,14 @@ interface SubscriptionGuardProps {
 }
 
 export function SubscriptionGuard({ children, bypass = false }: SubscriptionGuardProps) {
+  const bypassOnboardingGates = import.meta.env.VITE_BYPASS_ONBOARDING_GATES === "true";
   const location = useLocation();
   const navigate = useNavigate();
   const { signOut } = useAuth();
   const { data: activeOrgId, isLoading: orgLoading } = useActiveOrg();
   const { subscription, isLoading: subscriptionLoading, trialExpired } = useOrgPlanStatus(activeOrgId ?? undefined);
   const isOnboardingPath = location.pathname === "/onboarding";
+  const isMerchantSettingsPath = /^\/merchants\/[^/]+\/settings\/?$/.test(location.pathname);
 
   const { data: merchantCount = 0, isLoading: merchantLoading } = useQuery({
     queryKey: ["onboarding-merchant-count", activeOrgId ?? null],
@@ -34,24 +36,65 @@ export function SubscriptionGuard({ children, bypass = false }: SubscriptionGuar
     },
   });
 
-  const { data: merchantSettingsCount = 0, isLoading: merchantSettingsLoading } = useQuery({
-    queryKey: ["onboarding-merchant-settings-count", activeOrgId ?? null],
+  const { data: merchantOnboarding, isLoading: merchantOnboardingLoading } = useQuery({
+    queryKey: ["merchant-onboarding-guard", activeOrgId ?? null],
     enabled: !!activeOrgId,
     queryFn: async () => {
-      const { count, error } = await supabase
+      const { data: merchants, error: merchantErr } = await supabase
+        .from("merchants")
+        .select("id,status,created_at")
+        .eq("org_id", activeOrgId!)
+        .order("created_at", { ascending: true });
+      if (merchantErr) throw merchantErr;
+
+      const primaryMerchant = (merchants ?? []).find((merchant) => merchant.status === "active") ?? merchants?.[0] ?? null;
+      if (!primaryMerchant) {
+        return {
+          hasMerchant: false,
+          merchantId: null as string | null,
+          redirectPath: "/merchants",
+          setupComplete: false,
+        };
+      }
+
+      const { data: settings, error: settingsErr } = await supabase
         .from("merchant_settings")
-        .select("merchant_id", { count: "exact", head: true })
-        .eq("org_id", activeOrgId!);
-      if (error) throw error;
-      return count ?? 0;
+        .select("onboarding_step,credentials_valid,webhook_challenge_valid,connectivity_outbound_ok,connectivity_inbound_ok")
+        .eq("org_id", activeOrgId!)
+        .eq("merchant_id", primaryMerchant.id)
+        .maybeSingle();
+      if (settingsErr) throw settingsErr;
+
+      const setupComplete = Boolean(
+        settings
+        && settings.onboarding_step >= 3
+        && settings.credentials_valid
+        && settings.webhook_challenge_valid
+        && settings.connectivity_outbound_ok
+        && settings.connectivity_inbound_ok,
+      );
+
+      return {
+        hasMerchant: true,
+        merchantId: primaryMerchant.id,
+        redirectPath: `/merchants/${primaryMerchant.id}/settings`,
+        setupComplete,
+      };
     },
   });
 
-  const onboardingComplete = !!activeOrgId && merchantCount > 0 && merchantSettingsCount > 0;
+  const onboardingComplete = !!activeOrgId && merchantCount > 0;
+  const merchantSetupComplete = !!merchantOnboarding?.setupComplete;
 
-  if (bypass) return <>{children}</>;
+  if (bypass || bypassOnboardingGates) {
+    if (bypassOnboardingGates) {
+      // eslint-disable-next-line no-console
+      console.warn("[SubscriptionGuard] VITE_BYPASS_ONBOARDING_GATES=true: skipping onboarding/setup gating");
+    }
+    return <>{children}</>;
+  }
 
-  if (orgLoading || subscriptionLoading || merchantLoading || merchantSettingsLoading) {
+  if (orgLoading || subscriptionLoading || merchantLoading || merchantOnboardingLoading) {
     return (
       <div className="min-h-[40vh] flex items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -64,17 +107,24 @@ export function SubscriptionGuard({ children, bypass = false }: SubscriptionGuar
   }
 
   if (onboardingComplete && isOnboardingPath) {
+    if (!merchantSetupComplete && merchantOnboarding?.redirectPath) {
+      return <Navigate to={merchantOnboarding.redirectPath} replace />;
+    }
     return <Navigate to="/merchants" replace />;
   }
 
+  if (onboardingComplete && !merchantSetupComplete && !isMerchantSettingsPath) {
+    return <Navigate to={merchantOnboarding?.redirectPath ?? "/merchants"} replace />;
+  }
+
   if (subscription?.status === "past_due" || subscription?.status === "canceled") {
-    if (location.pathname !== "/billing" && !isOnboardingPath) {
+    if (location.pathname !== "/billing" && !isOnboardingPath && !isMerchantSettingsPath) {
       return <Navigate to="/billing" replace />;
     }
     return <>{children}</>;
   }
 
-  if (trialExpired && location.pathname !== "/billing" && !isOnboardingPath) {
+  if (trialExpired && location.pathname !== "/billing" && !isOnboardingPath && !isMerchantSettingsPath) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center px-4">
         <Card className="w-full max-w-lg">

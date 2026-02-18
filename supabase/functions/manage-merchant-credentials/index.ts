@@ -1,8 +1,10 @@
 /**
  * Edge Function: manage-merchant-credentials
  *
- * Admin-only endpoint for reading and updating WhatsApp API credentials
- * on the merchants table. Validates that the caller is an org_admin.
+ * Endpoint for reading and updating WhatsApp API credentials on merchants.
+ * Access rules:
+ * - org_admin can always read/update
+ * - during onboarding (wizard not complete), any org member can read/update
  *
  * GET-like (action: "read"):  Returns masked credentials for the merchant
  * POST-like (action: "update"): Updates credentials
@@ -76,16 +78,41 @@ Deno.serve(async (req) => {
       return json({ error: "Merchant not found" }, 404);
     }
 
-    // Verify caller is org_admin
+    // Verify caller has org membership
     const { data: membership } = await serviceClient
       .from("org_members")
       .select("role")
       .eq("org_id", merchant.org_id)
       .eq("user_id", user.id)
-      .single();
+      .maybeSingle();
 
-    if (!membership || membership.role !== "org_admin") {
-      return json({ error: "Only organization administrators can manage credentials" }, 403);
+    if (!membership) {
+      return json({ error: "Not authorized for this organization" }, 403);
+    }
+
+    let canManageCredentials = membership.role === "org_admin";
+    if (!canManageCredentials) {
+      const { data: settings } = await serviceClient
+        .from("merchant_settings")
+        .select("onboarding_step,credentials_valid,webhook_challenge_valid,connectivity_outbound_ok,connectivity_inbound_ok")
+        .eq("merchant_id", merchant.id)
+        .eq("org_id", merchant.org_id)
+        .maybeSingle();
+
+      const onboardingComplete = Boolean(
+        settings
+          && settings.onboarding_step >= 3
+          && settings.credentials_valid
+          && settings.webhook_challenge_valid
+          && settings.connectivity_outbound_ok
+          && settings.connectivity_inbound_ok,
+      );
+
+      canManageCredentials = !onboardingComplete;
+    }
+
+    if (!canManageCredentials) {
+      return json({ error: "Only organization administrators can manage credentials after onboarding is complete" }, 403);
     }
 
     if (action === "read") {
