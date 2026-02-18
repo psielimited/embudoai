@@ -13,12 +13,14 @@ type PipelineData = {
   gates: StageGateRow[];
 };
 
+type PipelineQueryData = PipelineData | null;
+
 function normalizeStages(stages: StageRow[]) {
   return [...stages].sort((a, b) => a.position - b.position);
 }
 
 export function usePipeline() {
-  return useQuery({
+  return useQuery<PipelineQueryData>({
     queryKey: ["pipeline-default"],
     queryFn: async () => {
       const orgId = await getActiveOrgId();
@@ -28,8 +30,9 @@ export function usePipeline() {
         .select("*")
         .eq("is_default", true)
         .eq("org_id", orgId)
-        .single();
+        .maybeSingle();
       if (pErr) throw pErr;
+      if (!pipeline) return null;
 
       const { data: stages, error: sErr } = await supabase
         .from("stages")
@@ -48,6 +51,54 @@ export function usePipeline() {
       if (gErr) throw gErr;
 
       return { pipeline, stages: stages ?? [], gates: gates ?? [] } as PipelineData;
+    },
+  });
+}
+
+export function useInitializePipeline() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const orgId = await getActiveOrgId();
+
+      const { data: existing, error: existingErr } = await supabase
+        .from("pipelines")
+        .select("id,name,is_default,org_id,created_at")
+        .eq("is_default", true)
+        .eq("org_id", orgId)
+        .maybeSingle();
+      if (existingErr) throw existingErr;
+
+      if (existing) {
+        return existing as PipelineRow;
+      }
+
+      const { data: created, error: createErr } = await supabase
+        .from("pipelines")
+        .insert({
+          org_id: orgId,
+          name: "Default Pipeline",
+          is_default: true,
+        })
+        .select("*")
+        .single();
+      if (createErr) throw createErr;
+
+      const stageNames = ["New", "Qualified", "Proposal", "Won"];
+      const { error: stageErr } = await supabase.from("stages").insert(
+        stageNames.map((name, index) => ({
+          org_id: orgId,
+          pipeline_id: created.id,
+          name,
+          position: index,
+        }))
+      );
+      if (stageErr) throw stageErr;
+
+      return created as PipelineRow;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["pipeline-default"] });
     },
   });
 }

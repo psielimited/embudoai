@@ -2,8 +2,9 @@ import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Plus, Loader2, SlidersHorizontal } from "lucide-react";
-import { usePipeline } from "@/hooks/usePipeline";
+import { useInitializePipeline, usePipeline } from "@/hooks/usePipeline";
 import { useOpportunities, useMoveOpportunityStage } from "@/hooks/useOpportunities";
 import { isEdgeError } from "@/lib/edge";
 import { OpportunityCard } from "@/components/OpportunityCard";
@@ -15,6 +16,7 @@ import { toast } from "sonner";
 export default function PipelineBoard() {
   const navigate = useNavigate();
   const { data: pipelineData, isLoading } = usePipeline();
+  const initializePipeline = useInitializePipeline();
   const { data: opportunities = [] } = useOpportunities(pipelineData?.pipeline.id);
   const moveStage = useMoveOpportunityStage();
 
@@ -95,7 +97,36 @@ export default function PipelineBoard() {
     );
   }
 
-  if (!pipelineData) return null;
+  if (!pipelineData) {
+    return (
+      <>
+        <PageHeader
+          title="Pipeline"
+          description="Your pipeline has not been configured yet"
+          actions={
+            <Button variant="outline" size="sm" onClick={() => navigate("/pipeline/settings")}>
+              <SlidersHorizontal className="h-4 w-4 mr-1" /> Configure Stages
+            </Button>
+          }
+        />
+        <Card>
+          <CardContent className="py-10 text-center">
+            <p className="text-sm text-muted-foreground mb-4">
+              No default pipeline was found. Configure your stages to start tracking opportunities.
+            </p>
+            <div className="flex items-center justify-center gap-2">
+              <Button onClick={() => initializePipeline.mutate()} disabled={initializePipeline.isPending}>
+                {initializePipeline.isPending ? "Creating..." : "Create Default Pipeline"}
+              </Button>
+              <Button variant="outline" onClick={() => navigate("/pipeline/settings")}>
+                Open Pipeline Settings
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </>
+    );
+  }
   const { pipeline, stages } = pipelineData;
 
   return (

@@ -20,6 +20,7 @@ import {
 import {
   useCreateStage,
   useDeleteStage,
+  useInitializePipeline,
   usePipeline,
   useReorderStages,
   useUpdateStage,
@@ -44,6 +45,7 @@ function parseCsv(value: string) {
 
 export default function PipelineSettings() {
   const { data: pipelineData, isLoading } = usePipeline();
+  const initializePipeline = useInitializePipeline();
   const createStage = useCreateStage();
   const updateStage = useUpdateStage();
   const reorderStages = useReorderStages();
@@ -168,7 +170,30 @@ export default function PipelineSettings() {
     );
   }
 
-  if (!pipelineData) return null;
+  if (!pipelineData) {
+    return (
+      <>
+        <PageHeader
+          title="Pipeline Settings"
+          description="Set up your default pipeline to start managing opportunities"
+          breadcrumbs={[
+            { label: "Pipeline", href: "/pipeline" },
+            { label: "Settings" },
+          ]}
+        />
+        <Card>
+          <CardContent className="py-10 text-center space-y-4">
+            <p className="text-sm text-muted-foreground">
+              No default pipeline exists for this organization yet. Create one first, then add stages and gate criteria.
+            </p>
+            <Button onClick={() => initializePipeline.mutate()} disabled={initializePipeline.isPending}>
+              {initializePipeline.isPending ? "Creating..." : "Create Default Pipeline"}
+            </Button>
+          </CardContent>
+        </Card>
+      </>
+    );
+  }
 
   return (
     <>
