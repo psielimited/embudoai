@@ -17,11 +17,28 @@ export function SubscriptionGuard({ children, bypass = false }: SubscriptionGuar
   const bypassOnboardingGates = import.meta.env.VITE_BYPASS_ONBOARDING_GATES === "true";
   const location = useLocation();
   const navigate = useNavigate();
-  const { signOut } = useAuth();
+  const { user, signOut } = useAuth();
+  const bypassEmails = new Set(["allen.rodriguez@gmail.com"]);
   const { data: activeOrgId, isLoading: orgLoading } = useActiveOrg();
   const { subscription, isLoading: subscriptionLoading, trialExpired } = useOrgPlanStatus(activeOrgId ?? undefined);
   const isOnboardingPath = location.pathname === "/onboarding";
   const isMerchantSettingsPath = /^\/merchants\/[^/]+\/settings\/?$/.test(location.pathname);
+
+  const { data: isPlatformAdmin = false, isLoading: roleLoading } = useQuery({
+    queryKey: ["platform-admin-role", user?.id ?? null],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data?.role === "admin";
+    },
+  });
+
+  const isBypassEmail = !!user?.email && bypassEmails.has(user.email.toLowerCase());
 
   const { data: merchantCount = 0, isLoading: merchantLoading } = useQuery({
     queryKey: ["onboarding-merchant-count", activeOrgId ?? null],
@@ -86,15 +103,19 @@ export function SubscriptionGuard({ children, bypass = false }: SubscriptionGuar
   const onboardingComplete = !!activeOrgId && merchantCount > 0;
   const merchantSetupComplete = !!merchantOnboarding?.setupComplete;
 
-  if (bypass || bypassOnboardingGates) {
+  if (bypass || bypassOnboardingGates || isPlatformAdmin || isBypassEmail) {
     if (bypassOnboardingGates) {
       // eslint-disable-next-line no-console
       console.warn("[SubscriptionGuard] VITE_BYPASS_ONBOARDING_GATES=true: skipping onboarding/setup gating");
     }
+    if (isPlatformAdmin || isBypassEmail) {
+      // eslint-disable-next-line no-console
+      console.warn("[SubscriptionGuard] Admin bypass active for dashboard gating");
+    }
     return <>{children}</>;
   }
 
-  if (orgLoading || subscriptionLoading || merchantLoading || merchantOnboardingLoading) {
+  if (orgLoading || subscriptionLoading || merchantLoading || merchantOnboardingLoading || roleLoading) {
     return (
       <div className="min-h-[40vh] flex items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
