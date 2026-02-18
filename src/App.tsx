@@ -69,6 +69,14 @@ function ProtectedDashboard({
   );
 }
 
+function ProtectedOnboarding({ children }: { children: React.ReactNode }) {
+  return (
+    <ProtectedRoute>
+      <SubscriptionGuard>{children}</SubscriptionGuard>
+    </ProtectedRoute>
+  );
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -84,8 +92,8 @@ const App = () => (
             <Route path="/pricing" element={<PublicLayout><PricingPage /></PublicLayout>} />
             <Route path="/privacy" element={<PublicLayout><PrivacyPolicy /></PublicLayout>} />
             <Route path="/data-deletion" element={<PublicLayout><DataDeletionPolicy /></PublicLayout>} />
-            <Route path="/billing" element={<ProtectedDashboard bypassSubscriptionGuard><Billing /></ProtectedDashboard>} />
-            <Route path="/onboarding" element={<ProtectedDashboard><Onboarding /></ProtectedDashboard>} />
+            <Route path="/billing" element={<ProtectedDashboard><Billing /></ProtectedDashboard>} />
+            <Route path="/onboarding" element={<ProtectedOnboarding><Onboarding /></ProtectedOnboarding>} />
             <Route path="/dashboard" element={<ProtectedDashboard><Dashboard /></ProtectedDashboard>} />
             <Route path="/pipeline" element={<ProtectedDashboard><PipelineBoard /></ProtectedDashboard>} />
             <Route path="/pipeline/settings" element={<ProtectedDashboard><PipelineSettings /></ProtectedDashboard>} />

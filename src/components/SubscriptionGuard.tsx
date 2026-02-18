@@ -34,11 +34,24 @@ export function SubscriptionGuard({ children, bypass = false }: SubscriptionGuar
     },
   });
 
-  const onboardingComplete = !!activeOrgId && merchantCount > 0;
+  const { data: merchantSettingsCount = 0, isLoading: merchantSettingsLoading } = useQuery({
+    queryKey: ["onboarding-merchant-settings-count", activeOrgId ?? null],
+    enabled: !!activeOrgId,
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("merchant_settings")
+        .select("merchant_id", { count: "exact", head: true })
+        .eq("org_id", activeOrgId!);
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+
+  const onboardingComplete = !!activeOrgId && merchantCount > 0 && merchantSettingsCount > 0;
 
   if (bypass) return <>{children}</>;
 
-  if (orgLoading || subscriptionLoading || merchantLoading) {
+  if (orgLoading || subscriptionLoading || merchantLoading || merchantSettingsLoading) {
     return (
       <div className="min-h-[40vh] flex items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
