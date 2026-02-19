@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { Building2, CheckCircle2, Globe, Loader2, Store } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,6 +14,7 @@ import { invalidateActiveOrgCache } from "@/lib/auth";
 
 export default function Onboarding() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -30,6 +32,7 @@ export default function Onboarding() {
       "Creating your merchant workspace",
       "Finalizing your onboarding profile",
       "Preparing your merchants workspace",
+      "Preparing your workspace…",
     ],
     [],
   );
@@ -110,6 +113,20 @@ export default function Onboarding() {
           throw new Error("Workspace is still provisioning. Please try again in a moment.");
         }
       }
+
+      // Step 5: Invalidate SubscriptionGuard queries so it sees fresh data
+      setProvisioningStep(5);
+      queryClient.removeQueries({ queryKey: ["onboarding-merchant-count"] });
+      queryClient.removeQueries({ queryKey: ["merchant-onboarding-guard"] });
+      queryClient.removeQueries({ queryKey: ["active-org"] });
+
+      // Pre-fill the cache so SubscriptionGuard doesn't redirect back
+      if (orgId) {
+        queryClient.setQueryData(["onboarding-merchant-count", orgId], 1);
+      }
+
+      // Brief delay to let guard settle before navigation
+      await new Promise((resolve) => setTimeout(resolve, 600));
 
       toast.success("Workspace setup complete.");
       navigate(
