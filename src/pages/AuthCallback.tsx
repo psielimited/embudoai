@@ -17,14 +17,14 @@ async function resolveDestination() {
     .maybeSingle();
 
   const activeOrgId = profile?.active_org_id ?? null;
-  if (!activeOrgId) return "/onboarding";
+  if (!activeOrgId) return "/onboarding/organization";
 
   const { count } = await supabase
     .from("merchants")
     .select("id", { count: "exact", head: true })
     .eq("org_id", activeOrgId);
 
-  if ((count ?? 0) === 0) return "/onboarding";
+  if ((count ?? 0) === 0) return "/onboarding/organization";
 
   const { data: merchants } = await supabase
     .from("merchants")
@@ -33,7 +33,7 @@ async function resolveDestination() {
     .order("created_at", { ascending: true });
 
   const primaryMerchant = (merchants ?? []).find((merchant) => merchant.status === "active") ?? merchants?.[0] ?? null;
-  if (!primaryMerchant) return "/onboarding";
+  if (!primaryMerchant) return "/onboarding/organization";
 
   const { data: settings } = await supabase
     .from("merchant_settings")
@@ -51,7 +51,7 @@ async function resolveDestination() {
       && settings.connectivity_inbound_ok,
   );
 
-  return merchantSetupComplete ? "/merchants" : `/merchants/${primaryMerchant.id}/settings`;
+  return merchantSetupComplete ? "/merchants" : `/onboarding/whatsapp/${primaryMerchant.id}/credentials`;
 }
 
 export default function AuthCallback() {

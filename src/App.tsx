@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Navigate, Routes, Route } from "react-router-dom";
 import { DashboardLayout } from "@/layouts/DashboardLayout";
 import { PublicLayout } from "@/layouts/PublicLayout";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
@@ -109,7 +109,9 @@ const App = () => (
             <Route path="/privacy" element={<PublicLayout><PrivacyPolicy /></PublicLayout>} />
             <Route path="/data-deletion" element={<PublicLayout><DataDeletionPolicy /></PublicLayout>} />
             <Route path="/billing" element={<ProtectedDashboard><Billing /></ProtectedDashboard>} />
-            <Route path="/onboarding" element={<ProtectedOnboarding><Onboarding /></ProtectedOnboarding>} />
+            <Route path="/onboarding" element={<ProtectedOnboarding><Navigate to="/onboarding/organization" replace /></ProtectedOnboarding>} />
+            <Route path="/onboarding/organization" element={<ProtectedOnboarding><Onboarding /></ProtectedOnboarding>} />
+            <Route path="/onboarding/whatsapp/:merchantId/:wizardStep" element={<ProtectedOnboarding><MerchantSettings /></ProtectedOnboarding>} />
             <Route path="/dashboard" element={<ProtectedDashboard><Dashboard /></ProtectedDashboard>} />
             <Route path="/pipeline" element={<ProtectedDashboard><PipelineBoard /></ProtectedDashboard>} />
             <Route path="/pipeline/settings" element={<ProtectedDashboard><PipelineSettings /></ProtectedDashboard>} />

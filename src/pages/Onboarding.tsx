@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { OnboardingProgress } from "@/components/OnboardingProgress";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { callEdge } from "@/lib/edge";
@@ -58,7 +59,7 @@ export default function Onboarding() {
           .eq("org_id", activeOrgId);
         const merchantId = existingMerchant?.[0]?.id;
         if (merchantId) {
-          navigate(`/merchants/${merchantId}/settings`, { replace: true });
+          navigate(`/onboarding/whatsapp/${merchantId}/credentials`, { replace: true });
           return;
         }
       }
@@ -130,7 +131,7 @@ export default function Onboarding() {
 
       toast.success("Workspace setup complete.");
       navigate(
-        provisionedMerchantId ? `/merchants/${provisionedMerchantId}/settings` : "/merchants",
+        provisionedMerchantId ? `/onboarding/whatsapp/${provisionedMerchantId}/credentials` : "/merchants",
         { replace: true },
       );
     } catch (error) {
@@ -190,7 +191,11 @@ export default function Onboarding() {
               Confirm your workspace details. Org and default merchant are created after email confirmation.
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-6">
+            <OnboardingProgress
+              activeStep={1}
+              stepLabels={["Organization", "WhatsApp Credentials", "Connectivity Test", "Status Review"]}
+            />
             <div className="mb-4 rounded-md border border-border bg-muted/30 p-3 text-sm text-muted-foreground">
               <p className="font-medium text-foreground">What should I enter?</p>
               <p>

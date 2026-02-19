@@ -21,8 +21,10 @@ export function SubscriptionGuard({ children, bypass = false }: SubscriptionGuar
   const bypassEmails = new Set(["allen.rodriguez@gmail.com"]);
   const { data: activeOrgId, isLoading: orgLoading } = useActiveOrg();
   const { subscription, isLoading: subscriptionLoading, trialExpired } = useOrgPlanStatus(activeOrgId ?? undefined);
-  const isOnboardingPath = location.pathname === "/onboarding";
-  const isMerchantSettingsPath = /^\/merchants\/[^/]+\/settings\/?$/.test(location.pathname);
+  const isOnboardingPath = location.pathname === "/onboarding" || location.pathname.startsWith("/onboarding/");
+  const isOrganizationOnboardingPath = location.pathname === "/onboarding" || location.pathname === "/onboarding/organization";
+  const isWizardOnboardingPath = /^\/onboarding\/whatsapp\/[^/]+\/(credentials|connectivity|status)\/?$/.test(location.pathname);
+  const isMerchantSettingsPath = /^\/merchants\/[^/]+\/settings\/?$/.test(location.pathname) || isWizardOnboardingPath;
 
   const { data: isPlatformAdmin = false, isLoading: roleLoading } = useQuery({
     queryKey: ["platform-admin-role", user?.id ?? null],
@@ -94,7 +96,7 @@ export function SubscriptionGuard({ children, bypass = false }: SubscriptionGuar
       return {
         hasMerchant: true,
         merchantId: primaryMerchant.id,
-        redirectPath: `/merchants/${primaryMerchant.id}/settings`,
+        redirectPath: `/onboarding/whatsapp/${primaryMerchant.id}/credentials`,
         setupComplete,
       };
     },
@@ -127,7 +129,7 @@ export function SubscriptionGuard({ children, bypass = false }: SubscriptionGuar
     return <Navigate to="/onboarding" replace />;
   }
 
-  if (onboardingComplete && isOnboardingPath) {
+  if (onboardingComplete && isOrganizationOnboardingPath) {
     if (!merchantSetupComplete && merchantOnboarding?.redirectPath) {
       return <Navigate to={merchantOnboarding.redirectPath} replace />;
     }

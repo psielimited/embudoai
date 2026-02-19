@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -14,6 +14,7 @@ import {
 import { formatDistanceToNow } from "date-fns";
 import { PageHeader } from "@/components/PageHeader";
 import { PlanSummary } from "@/components/PlanSummary";
+import { OnboardingProgress } from "@/components/OnboardingProgress";
 import {
   useDeactivateMerchant,
   useMerchant,
@@ -77,7 +78,8 @@ function formatTs(ts: string | null | undefined) {
 }
 
 export default function MerchantSettings() {
-  const { merchantId } = useParams<{ merchantId: string }>();
+  const { merchantId, wizardStep } = useParams<{ merchantId: string; wizardStep?: string }>();
+  const location = useLocation();
   const navigate = useNavigate();
   const { signOut } = useAuth();
   const { data: merchant, isLoading } = useMerchant(merchantId!);
@@ -110,10 +112,17 @@ export default function MerchantSettings() {
 
   const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/whatsapp-webhook`;
 
-  const step = useMemo(() => {
+  const onboardingStep = useMemo(() => {
     if (merchantSettings?.onboarding_step) return merchantSettings.onboarding_step;
     return 1;
   }, [merchantSettings]);
+  const onboardingWizardBase = `/onboarding/whatsapp/${merchantId}`;
+  const wizardSteps = ["credentials", "connectivity", "status"] as const;
+  const isWizardRoute = location.pathname.startsWith("/onboarding/whatsapp/");
+  const activeWizardStep = wizardSteps.includes((wizardStep as typeof wizardSteps[number]) ?? "credentials")
+    ? (wizardStep as typeof wizardSteps[number])
+    : "credentials";
+  const activeWizardStepNumber = wizardSteps.indexOf(activeWizardStep) + 1;
 
   const plan = subscription?.subscription_plans;
   const merchantLimit = (() => {
@@ -143,6 +152,12 @@ export default function MerchantSettings() {
       && merchantSettings.connectivity_inbound_ok,
   );
   const isMerchantSetupPending = !merchantWizardComplete;
+  const canAdvanceFromCredentials = Boolean(merchantSettings?.credentials_valid && merchantSettings?.webhook_challenge_valid);
+  const canAdvanceFromConnectivity = Boolean(merchantSettings?.connectivity_outbound_ok && merchantSettings?.connectivity_inbound_ok);
+  const showStep1Section = !isWizardRoute || activeWizardStep === "credentials";
+  const showStep2Section = !isWizardRoute || activeWizardStep === "connectivity";
+  const showStep3Section = !isWizardRoute || activeWizardStep === "status";
+  const onboardingFlowStep = isWizardRoute ? activeWizardStepNumber + 1 : 4;
   const isAdmin = credentials !== null;
   const canEditCredentials = isAdmin || isMerchantSetupPending;
 
@@ -288,6 +303,10 @@ export default function MerchantSettings() {
     navigate("/login", { replace: true });
   };
 
+  const goToWizardStep = (target: (typeof wizardSteps)[number]) => {
+    navigate(`${onboardingWizardBase}/${target}`);
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -301,8 +320,11 @@ export default function MerchantSettings() {
       <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 lg:px-8 space-y-6">
         <PageHeader
           title={`${merchant?.name ?? "Merchant"} Settings`}
-          description={isMerchantSetupPending ? "Complete WhatsApp setup before accessing the dashboard." : undefined}
-          breadcrumbs={[
+          description={isMerchantSetupPending ? "Complete the WhatsApp onboarding wizard to unlock dashboard access." : undefined}
+          breadcrumbs={isWizardRoute ? [
+            { label: "Onboarding", href: "/onboarding/organization" },
+            { label: "WhatsApp Setup" },
+          ] : [
             { label: "Merchants", href: "/merchants" },
             { label: merchant?.name ?? "...", href: `/merchants/${merchantId}/conversations` },
             { label: "Settings" },
@@ -324,6 +346,26 @@ export default function MerchantSettings() {
           </Alert>
         )}
 
+        {merchantWizardComplete && (
+          <Alert>
+            <CheckCircle2 className="h-4 w-4 text-green-600" />
+            <AlertTitle>WhatsApp onboarding complete</AlertTitle>
+            <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <span>
+                All setup steps passed. You can now proceed to the dashboard and use features available in your plan.
+              </span>
+              <span className="flex gap-2">
+                <Button size="sm" onClick={() => navigate("/dashboard")}>
+                  Go to Dashboard
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => navigate("/merchants")}>
+                  Merchants
+                </Button>
+              </span>
+            </AlertDescription>
+          </Alert>
+        )}
+
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -335,15 +377,15 @@ export default function MerchantSettings() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant={step >= 1 ? "secondary" : "outline"}>Step 1</Badge>
-              <Badge variant={step >= 2 ? "secondary" : "outline"}>Step 2</Badge>
-              <Badge variant={step >= 3 ? "secondary" : "outline"}>Step 3</Badge>
-              <span className="text-xs text-muted-foreground">Current step: {step}</span>
-            </div>
+            <OnboardingProgress
+              activeStep={onboardingFlowStep}
+              stepLabels={["Organization", "WhatsApp Credentials", "Connectivity Test", "Status Review"]}
+              helperText={`Technical step: ${onboardingStep}/3`}
+            />
 
-            <Separator />
+            {!isWizardRoute && <Separator />}
 
+            {showStep1Section && (
             <section className="space-y-4">
               <h3 className="text-sm font-semibold">Step 1 - Credential Entry</h3>
               <div className="rounded-md border border-border bg-muted/30 p-3 text-sm space-y-1">
@@ -469,12 +511,23 @@ export default function MerchantSettings() {
                     {onboardingCheck.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
                     Save and Validate Step 1
                   </Button>
+                  {isWizardRoute && (
+                    <Button
+                      variant="outline"
+                      onClick={() => goToWizardStep("connectivity")}
+                      disabled={!canAdvanceFromCredentials}
+                    >
+                      Continue to Step 2
+                    </Button>
+                  )}
                 </div>
               )}
             </section>
+            )}
 
-            <Separator />
+            {!isWizardRoute && <Separator />}
 
+            {showStep2Section && (
             <section className="space-y-4">
               <h3 className="text-sm font-semibold">Step 2 - Connectivity Test</h3>
               <div className="rounded-md border border-border bg-muted/30 p-3 text-sm space-y-1">
@@ -542,11 +595,27 @@ export default function MerchantSettings() {
                 >
                   Check Inbound Marker
                 </Button>
+                {isWizardRoute && (
+                  <>
+                    <Button variant="ghost" onClick={() => goToWizardStep("credentials")}>
+                      Back to Step 1
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => goToWizardStep("status")}
+                      disabled={!canAdvanceFromConnectivity}
+                    >
+                      Continue to Step 3
+                    </Button>
+                  </>
+                )}
               </div>
             </section>
+            )}
 
             <Separator />
 
+            {showStep3Section && (
             <section className="space-y-4">
               <div className="flex items-center justify-between gap-3">
                 <h3 className="text-sm font-semibold">Step 3 - Status Panel</h3>
@@ -580,7 +649,19 @@ export default function MerchantSettings() {
                   </p>
                 </div>
               </div>
+
+              {isWizardRoute && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button variant="ghost" onClick={() => goToWizardStep("connectivity")}>
+                    Back to Step 2
+                  </Button>
+                  <Button onClick={() => navigate("/dashboard")} disabled={!merchantWizardComplete}>
+                    Finish and open dashboard
+                  </Button>
+                </div>
+              )}
             </section>
+            )}
           </CardContent>
         </Card>
 
