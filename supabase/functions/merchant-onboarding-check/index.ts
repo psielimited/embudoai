@@ -122,9 +122,17 @@ Deno.serve(async (req) => {
 
       const challenge = "embudex_webhook_test_challenge";
       const webhookUrl = `${supabaseUrl}/functions/v1/whatsapp-webhook?hub.mode=subscribe&hub.verify_token=${encodeURIComponent(merchant.whatsapp_verify_token)}&hub.challenge=${challenge}`;
-      const webhookRes = await fetch(webhookUrl);
-      const webhookBody = await webhookRes.text();
-      const webhookValid = webhookRes.ok && webhookBody === challenge;
+
+      // Retry webhook challenge up to 2 times to handle cold-start "Forbidden"
+      let webhookValid = false;
+      let webhookBody = "";
+      for (let attempt = 0; attempt < 2; attempt++) {
+        if (attempt > 0) await new Promise((r) => setTimeout(r, 1500));
+        const webhookRes = await fetch(webhookUrl);
+        webhookBody = await webhookRes.text();
+        webhookValid = webhookRes.ok && webhookBody === challenge;
+        if (webhookValid) break;
+      }
 
       const templateInfo = {
         template_approval_state: "unknown",
