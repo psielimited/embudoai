@@ -184,16 +184,26 @@ Deno.serve(async (req) => {
       return json({ ok: true, skipped: true }, 200);
     }
 
-    // Look up merchant
-    const { data: merchant, error: merchantErr } = await supabase
+    // Look up merchant – avoid maybeSingle() because duplicate phone_number_ids
+    // across orgs would cause PostgREST to error instead of returning a row.
+    const { data: merchantRows, error: merchantErr } = await supabase
       .from("merchants")
       .select("id, org_id, whatsapp_app_secret")
       .eq("whatsapp_phone_number_id", phoneNumberId)
-      .maybeSingle();
+      .limit(2);
+
+    const merchant = merchantRows?.[0] ?? null;
 
     if (merchantErr || !merchant) {
       console.error("Merchant not found for phone_number_id:", phoneNumberId);
       return json({ ok: true, skipped: true }, 200);
+    }
+
+    if ((merchantRows?.length ?? 0) > 1) {
+      console.warn("Duplicate whatsapp_phone_number_id detected; using first match", {
+        phone_number_id: phoneNumberId,
+        merchant_ids: merchantRows?.map((m) => m.id),
+      });
     }
 
     // Signature verification
