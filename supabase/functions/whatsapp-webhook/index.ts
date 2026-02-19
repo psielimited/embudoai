@@ -124,15 +124,31 @@ Deno.serve(async (req) => {
       return json({ error: "Missing verification params" }, 400);
     }
 
-    // Look up merchant by verify token
-    const { data: merchant } = await supabase
+    // Look up merchant by verify token.
+    // Do not use maybeSingle() here: duplicate tokens across merchants can cause
+    // false "no row" behavior and break Meta handshake with 403.
+    const { data: merchants, error: merchantLookupError } = await supabase
       .from("merchants")
-      .select("id")
+      .select("id, org_id, name")
       .eq("whatsapp_verify_token", token)
-      .maybeSingle();
+      .limit(2);
+
+    if (merchantLookupError) {
+      console.error("Webhook verify-token lookup failed:", merchantLookupError);
+      return new Response("Forbidden", { status: 403 });
+    }
+
+    const merchant = merchants?.[0] ?? null;
 
     if (!merchant) {
       return new Response("Forbidden", { status: 403 });
+    }
+
+    if ((merchants?.length ?? 0) > 1) {
+      console.warn("Duplicate whatsapp_verify_token detected; using first match for webhook handshake", {
+        token_preview: token.slice(0, 8),
+        merchant_ids: merchants?.map((item) => item.id),
+      });
     }
 
     return new Response(challenge, { status: 200, headers: { "Content-Type": "text/plain" } });
