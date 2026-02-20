@@ -1,37 +1,59 @@
 
+# Deploy Edge Functions, Fix Build Errors, and Configure Secrets
 
-# Fix Onboarding-to-Merchant-Settings Infinite Loop (Revised)
+## 1. Fix Build Errors
 
-## Problem
-After completing the onboarding form, the app enters an infinite redirect loop between `/onboarding` and `/merchants/{id}/settings` because `SubscriptionGuard` reads stale cached data.
+### `supabase/functions/ai-sales-agent/index.ts` (line 154)
+- Add explicit type annotation to the `.find()` callback parameter `s` to fix `TS7006`:
+  ```typescript
+  const match = (stages ?? []).find((s: any) =>
+  ```
 
-## Key Insight
-The route wrapper (`ProtectedOnboarding` vs `ProtectedDashboard`) is NOT the cause. The loop is caused by stale React Query cache. The `/merchants/:merchantId/settings` route should stay wrapped in `ProtectedOnboarding` to keep the sidebar hidden until setup is done.
+### `src/pages/MerchantSettings.tsx` -- three missing references
 
-## Solution
+**Missing imports (add to top of file):**
+- `callEdge` from `@/lib/edge`
+- `useQueryClient` from `@tanstack/react-query`
 
-### Only file changed: `src/pages/Onboarding.tsx`
+**Missing state variable:**
+- Add `const [appSecret, setAppSecret] = useState("");` alongside the other credential state variables (after line 97)
 
-1. **Invalidate stale queries after provisioning** -- Before navigating to merchant settings, remove the cached query keys that `SubscriptionGuard` depends on:
-   - `onboarding-merchant-count`
-   - `merchant-onboarding-guard`
-   - `active-org`
+**Missing queryClient instance:**
+- Add `const queryClient = useQueryClient();` inside the component body (after line 93)
 
-2. **Await fresh data before navigating** -- After invalidation, refetch the critical queries and only call `navigate()` once the data confirms the merchant exists. This prevents the guard from seeing stale `merchantCount=0` and bouncing back to `/onboarding`.
+**Credential initializer:**
+- In the `useEffect` that populates credential fields (line 102-108), also set `appSecret` from `credentials.whatsapp_app_secret`
 
-3. **Show a transitional loading step** -- Add a final provisioning step ("Preparing your workspace...") in the progress modal so the user sees smooth progress rather than a flash of redirects.
+## 2. Deploy Edge Functions
 
-### No changes to `src/App.tsx`
-The `/merchants/:merchantId/settings` route stays wrapped in `ProtectedOnboarding` -- no sidebar access until merchant setup is complete.
+After fixing the build errors, deploy the following three functions:
+- `meta-embedded-signup-init`
+- `meta-embedded-signup-exchange`
+- `merchant-onboarding-check`
 
-### No changes to `SubscriptionGuard.tsx`
-The fix is upstream in the onboarding page's navigation logic.
+## 3. Set Secrets
 
-## Expected Behavior After Fix
-1. User fills out onboarding form and submits
-2. Progress modal shows provisioning steps
-3. After success, queries are invalidated and refetched
-4. Final step "Preparing your workspace..." displays briefly
-5. Navigation to `/merchants/{id}/settings` occurs only after cache is fresh
-6. No redirect loop -- merchant settings page renders without sidebar
+The project needs these secrets added. Some are public values, others need user input:
 
+| Secret | Value | Action |
+|--------|-------|--------|
+| `META_APP_ID` | `1622842462247348` | Set directly (public) |
+| `META_GRAPH_VERSION` | `v24.0` | Set directly (public config) |
+| `META_REDIRECT_URI` | `https://embudex.com/auth/meta/callback` | Set directly (public config) |
+| `META_APP_SECRET` | User must provide | Prompt user to enter |
+| `META_WEBHOOK_VERIFY_TOKEN` | User must provide | Prompt user to enter |
+
+## 4. Frontend Environment Variable
+
+Set `VITE_META_REDIRECT_URI=https://embudex.com/auth/meta/callback` in the `.env` file -- however since `.env` is auto-managed, this will need to be added via the Lovable Cloud secrets/env configuration. Alternatively, the existing `getMetaRedirectUri()` fallback in `src/lib/meta/constants.ts` already constructs this from `window.location.origin`, so if the production domain is `embudex.com`, it will resolve correctly without an explicit env var.
+
+## 5. Database Prerequisite
+
+The `meta_signup_nonces` table must exist (referenced by the edge functions). If it doesn't already exist, a migration will be needed to create it with columns: `id`, `org_id`, `merchant_id`, `user_id`, `state`, `redirect_uri`, `expires_at`, `consumed_at`.
+
+## Execution Order
+1. Fix build errors in both files (parallel edits)
+2. Verify `meta_signup_nonces` table exists; create migration if needed
+3. Deploy the three edge functions
+4. Set public secrets (`META_APP_ID`, `META_GRAPH_VERSION`, `META_REDIRECT_URI`)
+5. Prompt user for `META_APP_SECRET` and `META_WEBHOOK_VERIFY_TOKEN`
