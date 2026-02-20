@@ -151,7 +151,7 @@ async function findStageByKey(
     .eq("pipeline_id", pipeline.id)
     .order("position", { ascending: true });
 
-  const match = (stages ?? []).find((s) =>
+  const match = (stages ?? []).find((s: any) =>
     names.some((n) => s.name.toLowerCase().includes(n))
   );
   return match?.id ?? null;

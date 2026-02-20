@@ -976,11 +976,18 @@ export type Database = {
           credentials_error: string | null
           credentials_last_checked_at: string | null
           credentials_valid: boolean
+          embedded_signup_error: string | null
+          embedded_signup_payload: Json
+          embedded_signup_status: string | null
           id: string
           last_outbound_failure_at: string | null
           last_outbound_success_at: string | null
           last_webhook_received_at: string | null
           merchant_id: string
+          meta_access_token_last4: string | null
+          meta_phone_number_id: string | null
+          meta_token_updated_at: string | null
+          meta_waba_id: string | null
           onboarding_step: number
           org_id: string
           template_approval_state: string | null
@@ -1007,11 +1014,18 @@ export type Database = {
           credentials_error?: string | null
           credentials_last_checked_at?: string | null
           credentials_valid?: boolean
+          embedded_signup_error?: string | null
+          embedded_signup_payload?: Json
+          embedded_signup_status?: string | null
           id?: string
           last_outbound_failure_at?: string | null
           last_outbound_success_at?: string | null
           last_webhook_received_at?: string | null
           merchant_id: string
+          meta_access_token_last4?: string | null
+          meta_phone_number_id?: string | null
+          meta_token_updated_at?: string | null
+          meta_waba_id?: string | null
           onboarding_step?: number
           org_id: string
           template_approval_state?: string | null
@@ -1038,11 +1052,18 @@ export type Database = {
           credentials_error?: string | null
           credentials_last_checked_at?: string | null
           credentials_valid?: boolean
+          embedded_signup_error?: string | null
+          embedded_signup_payload?: Json
+          embedded_signup_status?: string | null
           id?: string
           last_outbound_failure_at?: string | null
           last_outbound_success_at?: string | null
           last_webhook_received_at?: string | null
           merchant_id?: string
+          meta_access_token_last4?: string | null
+          meta_phone_number_id?: string | null
+          meta_token_updated_at?: string | null
+          meta_waba_id?: string | null
           onboarding_step?: number
           org_id?: string
           template_approval_state?: string | null
@@ -1203,6 +1224,57 @@ export type Database = {
             columns: ["reply_to_message_id"]
             isOneToOne: false
             referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meta_signup_nonces: {
+        Row: {
+          consumed_at: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          merchant_id: string
+          org_id: string
+          redirect_uri: string
+          state: string
+          user_id: string
+        }
+        Insert: {
+          consumed_at?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          merchant_id: string
+          org_id: string
+          redirect_uri: string
+          state: string
+          user_id: string
+        }
+        Update: {
+          consumed_at?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          merchant_id?: string
+          org_id?: string
+          redirect_uri?: string
+          state?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_signup_nonces_merchant_id_fkey"
+            columns: ["merchant_id"]
+            isOneToOne: false
+            referencedRelation: "merchants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meta_signup_nonces_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
             referencedColumns: ["id"]
           },
         ]

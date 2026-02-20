@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { callEdge } from "@/lib/edge";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   AlertTriangle,
@@ -91,8 +93,10 @@ export default function MerchantSettings() {
   const updateCredentials = useUpdateMerchantCredentials();
   const deactivateMerchant = useDeactivateMerchant();
   const onboardingCheck = useRunMerchantOnboardingCheck();
+  const queryClient = useQueryClient();
 
   const [phoneNumberId, setPhoneNumberId] = useState("");
+  const [appSecret, setAppSecret] = useState("");
   const [verifyToken, setVerifyToken] = useState("");
   const [accessToken, setAccessToken] = useState("");
   const [testRecipient, setTestRecipient] = useState("");
@@ -104,6 +108,7 @@ export default function MerchantSettings() {
     setPhoneNumberId(credentials.whatsapp_phone_number_id ?? "");
     setVerifyToken(credentials.whatsapp_verify_token ?? "");
     setAccessToken(credentials.whatsapp_access_token ?? "");
+    setAppSecret(credentials.whatsapp_app_secret ?? "");
     setInitialized(true);
   }, [credentials, initialized]);
 
