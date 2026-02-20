@@ -84,3 +84,29 @@ export interface ChannelEvent {
   processed_at: string | null;
   created_at: string;
 }
+
+export interface AiAgentRun {
+  id: string;
+  org_id: string;
+  merchant_id: string;
+  conversation_id: string;
+  trigger_message_id: string | null;
+  model: string;
+  status: "started" | "completed" | "failed" | "skipped";
+  input_summary: Record<string, unknown>;
+  output: Record<string, unknown>;
+  error: string | null;
+  created_at: string;
+}
+
+export interface AiAgentAction {
+  id: string;
+  org_id: string;
+  run_id: string;
+  action_type: string;
+  payload: Record<string, unknown>;
+  status: "pending" | "executed" | "failed" | "skipped";
+  error: string | null;
+  executed_at: string | null;
+  created_at: string;
+}

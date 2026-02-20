@@ -265,7 +265,7 @@ Deno.serve(async (req) => {
       details: { message_id: newMessage.id, sender },
     });
 
-    // 6. Trigger AI draft generation if sender is 'user'
+    // 6. Trigger autonomous AI sales agent if sender is 'user'
     let aiQueued = false;
     if (sender === "user") {
       try {
@@ -274,8 +274,8 @@ Deno.serve(async (req) => {
           .update({ ai_status: "queued" })
           .eq("id", conversationId);
 
-        // Fire-and-forget call to generate-ai-reply
-        const fnUrl = `${supabaseUrl}/functions/v1/generate-ai-reply`;
+        // Fire-and-forget call to ai-sales-agent
+        const fnUrl = `${supabaseUrl}/functions/v1/ai-sales-agent`;
         fetch(fnUrl, {
           method: "POST",
           headers: {
@@ -286,7 +286,7 @@ Deno.serve(async (req) => {
             conversation_id: conversationId,
             trigger_message_id: newMessage.id,
           }),
-        }).catch((e) => console.error("generate-ai-reply fire-and-forget error:", e));
+        }).catch((e) => console.error("ai-sales-agent fire-and-forget error:", e));
 
         aiQueued = true;
       } catch (e) {

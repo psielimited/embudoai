@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { MessageBubble } from "@/components/MessageBubble";
 import { ConversationWorkflow } from "@/components/ConversationWorkflow";
 import { ConversationTimeline } from "@/components/ConversationTimeline";
+import { AgentRunPanel } from "@/components/AgentRunPanel";
 import { useMerchant } from "@/hooks/useMerchants";
 import { useConversation } from "@/hooks/useConversations";
 import { useMessages } from "@/hooks/useMessages";
@@ -470,6 +471,9 @@ export default function ConversationDetail() {
           </div>
         </CardContent>
       </Card>
+      <div className="mt-6">
+        <AgentRunPanel conversationId={conversationId} />
+      </div>
       <div className="mt-6">
         <ConversationTimeline conversationId={conversationId} />
       </div>
