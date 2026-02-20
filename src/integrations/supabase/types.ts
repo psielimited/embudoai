@@ -55,6 +55,128 @@ export type Database = {
           },
         ]
       }
+      ai_agent_actions: {
+        Row: {
+          action_type: string
+          created_at: string
+          error: string | null
+          executed_at: string | null
+          id: string
+          org_id: string
+          payload: Json
+          run_id: string
+          status: string
+        }
+        Insert: {
+          action_type: string
+          created_at?: string
+          error?: string | null
+          executed_at?: string | null
+          id?: string
+          org_id: string
+          payload?: Json
+          run_id: string
+          status?: string
+        }
+        Update: {
+          action_type?: string
+          created_at?: string
+          error?: string | null
+          executed_at?: string | null
+          id?: string
+          org_id?: string
+          payload?: Json
+          run_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_agent_actions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agent_actions_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_agent_runs: {
+        Row: {
+          conversation_id: string
+          created_at: string
+          error: string | null
+          id: string
+          input_summary: Json
+          merchant_id: string
+          model: string
+          org_id: string
+          output: Json
+          status: string
+          trigger_message_id: string | null
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string
+          error?: string | null
+          id?: string
+          input_summary?: Json
+          merchant_id: string
+          model: string
+          org_id: string
+          output?: Json
+          status: string
+          trigger_message_id?: string | null
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string
+          error?: string | null
+          id?: string
+          input_summary?: Json
+          merchant_id?: string
+          model?: string
+          org_id?: string
+          output?: Json
+          status?: string
+          trigger_message_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_agent_runs_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agent_runs_merchant_id_fkey"
+            columns: ["merchant_id"]
+            isOneToOne: false
+            referencedRelation: "merchants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agent_runs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agent_runs_trigger_message_id_fkey"
+            columns: ["trigger_message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       analytics_daily: {
         Row: {
           created_at: string
@@ -470,10 +592,14 @@ export type Database = {
           intent: string | null
           language: string
           last_ai_outbound_at: string | null
+          last_entities: Json
           last_human_outbound_at: string | null
           last_inbound_at: string | null
+          last_intent: string | null
           last_outbound_at: string | null
           lead_id: string | null
+          lead_score: number
+          lead_score_reason: Json
           merchant_id: string
           opportunity_id: string | null
           org_id: string
@@ -497,10 +623,14 @@ export type Database = {
           intent?: string | null
           language?: string
           last_ai_outbound_at?: string | null
+          last_entities?: Json
           last_human_outbound_at?: string | null
           last_inbound_at?: string | null
+          last_intent?: string | null
           last_outbound_at?: string | null
           lead_id?: string | null
+          lead_score?: number
+          lead_score_reason?: Json
           merchant_id: string
           opportunity_id?: string | null
           org_id: string
@@ -524,10 +654,14 @@ export type Database = {
           intent?: string | null
           language?: string
           last_ai_outbound_at?: string | null
+          last_entities?: Json
           last_human_outbound_at?: string | null
           last_inbound_at?: string | null
+          last_intent?: string | null
           last_outbound_at?: string | null
           lead_id?: string | null
+          lead_score?: number
+          lead_score_reason?: Json
           merchant_id?: string
           opportunity_id?: string | null
           org_id?: string
@@ -778,6 +912,54 @@ export type Database = {
             columns: ["stage_id"]
             isOneToOne: false
             referencedRelation: "stages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      merchant_agent_settings: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          handoff_rules: Json
+          merchant_id: string
+          objective: string
+          org_id: string
+          stage_mapping: Json
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          handoff_rules?: Json
+          merchant_id: string
+          objective?: string
+          org_id: string
+          stage_mapping?: Json
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          handoff_rules?: Json
+          merchant_id?: string
+          objective?: string
+          org_id?: string
+          stage_mapping?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "merchant_agent_settings_merchant_id_fkey"
+            columns: ["merchant_id"]
+            isOneToOne: true
+            referencedRelation: "merchants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "merchant_agent_settings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
             referencedColumns: ["id"]
           },
         ]

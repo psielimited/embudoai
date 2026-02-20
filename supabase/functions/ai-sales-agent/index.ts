@@ -87,8 +87,9 @@ function normalizeConversationStatus(status?: string | null) {
   return status as "open" | "waiting_on_customer" | "needs_handoff" | "resolved" | "closed";
 }
 
+// deno-lint-ignore no-explicit-any
 async function markActionStatus(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   actionId: string,
   status: "executed" | "failed" | "skipped",
   error?: string,
@@ -103,8 +104,9 @@ async function markActionStatus(
     .eq("id", actionId);
 }
 
+// deno-lint-ignore no-explicit-any
 async function findStageByKey(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   orgId: string,
   merchantId: string,
   stageKey: string | undefined,
@@ -494,7 +496,7 @@ Rules:
             const rpc = await supabase.rpc("rpc_move_opportunity_stage", {
               p_opportunity_id: opportunityId,
               p_to_stage_id: stageId,
-              p_expected_version: opp.version,
+              p_expected_version: opp!.version,
               p_actor_user_id: ownerUserId,
             });
 
