@@ -105,10 +105,11 @@ Deno.serve(async (req) => {
     };
 
     if (action === "validate_credentials") {
-      if (!merchant.whatsapp_phone_number_id || !merchant.whatsapp_access_token || !merchant.whatsapp_verify_token) {
+      const verifyToken = merchant.whatsapp_verify_token ?? (Deno.env.get("META_WEBHOOK_VERIFY_TOKEN") ?? null);
+      if (!merchant.whatsapp_phone_number_id || !merchant.whatsapp_access_token || !verifyToken) {
         return json({
           ok: false,
-          error: "Missing merchant credentials. Save phone_number_id, access_token and verify_token first.",
+          error: "Missing merchant credentials. Connect WhatsApp first.",
         }, 400);
       }
 
@@ -121,7 +122,7 @@ Deno.serve(async (req) => {
       const tokenError = tokenValid ? null : JSON.stringify(tokenCheck.body?.error ?? tokenCheck.body).slice(0, 500);
 
       const challenge = "embudex_webhook_test_challenge";
-      const webhookUrl = `${supabaseUrl}/functions/v1/whatsapp-webhook?hub.mode=subscribe&hub.verify_token=${encodeURIComponent(merchant.whatsapp_verify_token)}&hub.challenge=${challenge}`;
+      const webhookUrl = `${supabaseUrl}/functions/v1/whatsapp-webhook?hub.mode=subscribe&hub.verify_token=${encodeURIComponent(verifyToken)}&hub.challenge=${challenge}`;
 
       // Retry webhook challenge up to 2 times to handle cold-start "Forbidden"
       let webhookValid = false;

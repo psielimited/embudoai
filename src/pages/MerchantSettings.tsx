@@ -4,10 +4,8 @@ import {
   AlertTriangle,
   CheckCircle2,
   CircleDot,
-  Eye,
-  EyeOff,
   Loader2,
-  Save,
+  Link2,
   Store,
   XCircle,
 } from "lucide-react";
@@ -47,6 +45,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
+import { META_CONFIG_ID, getMetaRedirectUri } from "@/lib/meta/constants";
+import { loadFacebookSdk } from "@/lib/meta/fbSdk";
 
 function StepStatus({ ok, label }: { ok: boolean | null; label: string }) {
   if (ok === true) {
@@ -84,7 +84,7 @@ export default function MerchantSettings() {
   const { signOut } = useAuth();
   const { data: merchant, isLoading } = useMerchant(merchantId!);
   const { data: merchantSettings } = useMerchantSettings(merchantId);
-  const { data: credentials, isLoading: credentialsLoading } = useMerchantCredentials(merchantId);
+  const { data: credentials } = useMerchantCredentials(merchantId);
   const { data: activeOrgId } = useActiveOrg();
   const { subscription, trialDaysRemaining, overQuota, trialExpired } = useOrgPlanStatus(activeOrgId ?? undefined);
   const updateMerchant = useUpdateMerchant();
@@ -94,18 +94,15 @@ export default function MerchantSettings() {
 
   const [phoneNumberId, setPhoneNumberId] = useState("");
   const [verifyToken, setVerifyToken] = useState("");
-  const [appSecret, setAppSecret] = useState("");
   const [accessToken, setAccessToken] = useState("");
-  const [showSecret, setShowSecret] = useState(false);
-  const [showToken, setShowToken] = useState(false);
   const [testRecipient, setTestRecipient] = useState("");
   const [initialized, setInitialized] = useState(false);
+  const [embeddedStatus, setEmbeddedStatus] = useState<"idle" | "connecting" | "exchanging" | "provisioning" | "validating" | "done" | "error">("idle");
 
   useEffect(() => {
     if (!credentials || initialized) return;
     setPhoneNumberId(credentials.whatsapp_phone_number_id ?? "");
     setVerifyToken(credentials.whatsapp_verify_token ?? "");
-    setAppSecret(credentials.whatsapp_app_secret ?? "");
     setAccessToken(credentials.whatsapp_access_token ?? "");
     setInitialized(true);
   }, [credentials, initialized]);
@@ -159,7 +156,8 @@ export default function MerchantSettings() {
   const showStep3Section = !isWizardRoute || activeWizardStep === "status";
   const onboardingFlowStep = isWizardRoute ? activeWizardStepNumber + 1 : 4;
   const isAdmin = credentials !== null;
-  const canEditCredentials = isAdmin || isMerchantSetupPending;
+  const manualSetupEnabled = import.meta.env.VITE_FEATURE_FLAG_MANUAL_WA_SETUP === "true";
+  const canEditCredentials = manualSetupEnabled && (isAdmin || isMerchantSetupPending);
 
   const handleSaveCredentials = async () => {
     if (!merchantId) return;
@@ -307,6 +305,101 @@ export default function MerchantSettings() {
     navigate(`${onboardingWizardBase}/${target}`);
   };
 
+  const embeddedStepLabel: Record<typeof embeddedStatus, string> = {
+    idle: "Ready to connect",
+    connecting: "Opening Meta Embedded Signup",
+    exchanging: "Exchanging authorization code",
+    provisioning: "Provisioning WhatsApp assets",
+    validating: "Running validation checks",
+    done: "Connection complete",
+    error: "Connection failed",
+  };
+
+  const handleEmbeddedSignupConnect = async () => {
+    if (!merchantId) return;
+    try {
+      setEmbeddedStatus("connecting");
+      await loadFacebookSdk();
+      const redirectUri = getMetaRedirectUri();
+
+      const init = await callEdge<{ ok: boolean; state: string }>("meta-embedded-signup-init", {
+        merchant_id: merchantId,
+        redirect_uri: redirectUri,
+      });
+      const state = init.state;
+      sessionStorage.setItem(`embudex.meta.state.${merchantId}`, state);
+
+      let hintedWabaId: string | null = null;
+      let hintedPhoneId: string | null = null;
+      const listener = (event: MessageEvent) => {
+        if (!event.origin.includes("facebook.com")) return;
+        try {
+          const raw = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
+          const payload = raw?.data ?? raw;
+          const waba = payload?.waba_id ?? payload?.business_account_id ?? payload?.whatsapp_business_account_id;
+          const phone = payload?.phone_number_id ?? payload?.phone_id;
+          if (typeof waba === "string") hintedWabaId = waba;
+          if (typeof phone === "string") hintedPhoneId = phone;
+        } catch {
+          // ignore
+        }
+      };
+      window.addEventListener("message", listener);
+
+      const authResponse = await new Promise<{ code?: string }>((resolve) => {
+        window.FB?.login(
+          (response) => resolve({ code: response?.authResponse?.code }),
+          {
+            config_id: META_CONFIG_ID,
+            response_type: "code",
+            override_default_response_type: true,
+            extras: {
+              setup: {},
+            },
+          },
+        );
+      });
+      window.removeEventListener("message", listener);
+
+      const code = authResponse.code;
+      if (!code) {
+        setEmbeddedStatus("error");
+        toast.error("Meta signup was cancelled or did not return an authorization code.");
+        return;
+      }
+
+      setEmbeddedStatus("exchanging");
+      const result = await callEdge<{ ok: boolean; status?: Record<string, string> }>(
+        "meta-embedded-signup-exchange",
+        {
+          merchant_id: merchantId,
+          code,
+          state,
+          redirect_uri: redirectUri,
+          waba_id: hintedWabaId,
+          phone_number_id: hintedPhoneId,
+        },
+      );
+
+      setEmbeddedStatus("validating");
+      queryClient.invalidateQueries({ queryKey: ["merchant-settings", merchantId] });
+      queryClient.invalidateQueries({ queryKey: ["merchant", merchantId] });
+      queryClient.invalidateQueries({ queryKey: ["merchant-credentials", merchantId] });
+
+      if (result.ok) {
+        setEmbeddedStatus("done");
+        toast.success("WhatsApp connected successfully.");
+      } else {
+        setEmbeddedStatus("error");
+        toast.error("Connection failed.");
+      }
+    } catch (error) {
+      console.error(error);
+      setEmbeddedStatus("error");
+      toast.error(error instanceof Error ? error.message : "Failed to connect WhatsApp");
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -387,32 +480,16 @@ export default function MerchantSettings() {
 
             {showStep1Section && (
             <section className="space-y-4">
-              <h3 className="text-sm font-semibold">Step 1 - Credential Entry</h3>
+              <h3 className="text-sm font-semibold">Step 1 - Connect WhatsApp (Embedded Signup)</h3>
               <div className="rounded-md border border-border bg-muted/30 p-3 text-sm space-y-1">
-                <p className="font-medium text-foreground">Where to find these values in Meta</p>
+                <p className="font-medium text-foreground">Connect from Meta in one click</p>
                 <p className="text-muted-foreground">
-                  <code>phone_number_id</code>: WhatsApp Manager {"->"} API Setup {"->"} Phone Number ID.
+                  This flow uses Meta Embedded Signup with your platform configuration and stores credentials server-side.
                 </p>
                 <p className="text-muted-foreground">
-                  <code>access_token</code>: Meta App {"->"} WhatsApp {"->"} API Setup {"->"} temporary or permanent access token.
-                </p>
-                <p className="text-muted-foreground">
-                  <code>app_secret</code>: Meta App Dashboard {"->"} Settings {"->"} Basic {"->"} App Secret.
-                </p>
-                <p className="text-muted-foreground">
-                  <code>verify_token</code>: your own secret phrase; use the exact same value in Meta webhook config and here.
+                  No copy/paste of access token, app secret, or phone number ID is required.
                 </p>
               </div>
-
-              {!canEditCredentials && !credentialsLoading && (
-                <Alert>
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertTitle>Admin access required</AlertTitle>
-                  <AlertDescription>
-                    Only organization administrators can view and manage WhatsApp credentials.
-                  </AlertDescription>
-                </Alert>
-              )}
 
               <div className="space-y-2">
                 <Label>Webhook URL</Label>
@@ -431,60 +508,84 @@ export default function MerchantSettings() {
                 </div>
               </div>
 
+              <div className="rounded-md border border-border p-3 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-medium">Connection status</p>
+                  <Badge variant={embeddedStatus === "error" ? "destructive" : embeddedStatus === "done" ? "secondary" : "outline"}>
+                    {embeddedStepLabel[embeddedStatus]}
+                  </Badge>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    onClick={() => void handleEmbeddedSignupConnect()}
+                    disabled={embeddedStatus === "connecting" || embeddedStatus === "exchanging" || onboardingCheck.isPending}
+                  >
+                    {embeddedStatus === "connecting" || embeddedStatus === "exchanging" ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Link2 className="h-4 w-4 mr-2" />
+                    )}
+                    Connect WhatsApp
+                  </Button>
+                </div>
+                <div className="grid grid-cols-1 gap-2 text-xs text-muted-foreground sm:grid-cols-2">
+                  <p>WABA ID: {(merchantSettings as any)?.meta_waba_id ?? "Not connected"}</p>
+                  <p>Phone Number ID: {(merchantSettings as any)?.meta_phone_number_id ?? merchant?.whatsapp_phone_number_id ?? "Not connected"}</p>
+                </div>
+              </div>
+
+              {manualSetupEnabled && (
+                <Alert>
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>Manual setup fallback enabled</AlertTitle>
+                  <AlertDescription>
+                    This is an admin-only escape hatch. Embedded Signup remains the default path.
+                  </AlertDescription>
+                </Alert>
+              )}
+
               {canEditCredentials && (
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="phoneNumberId">phone_number_id</Label>
-                    <Input
-                      id="phoneNumberId"
-                      value={phoneNumberId}
-                      onChange={(event) => setPhoneNumberId(event.target.value)}
-                      placeholder="e.g. 123456789012345"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="verifyToken">verify_token</Label>
-                    <Input
-                      id="verifyToken"
-                      value={verifyToken}
-                      onChange={(event) => setVerifyToken(event.target.value)}
-                      placeholder="Webhook verify token"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="appSecret">app_secret</Label>
-                    <div className="flex items-center gap-2">
+                <details className="rounded-md border border-border p-3">
+                  <summary className="cursor-pointer text-sm font-medium">Manual credential override</summary>
+                  <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="phoneNumberId">phone_number_id</Label>
                       <Input
-                        id="appSecret"
-                        type={showSecret ? "text" : "password"}
-                        value={appSecret}
-                        onChange={(event) => setAppSecret(event.target.value)}
-                        placeholder="Meta app secret"
+                        id="phoneNumberId"
+                        value={phoneNumberId}
+                        onChange={(event) => setPhoneNumberId(event.target.value)}
+                        placeholder="e.g. 123456789012345"
                       />
-                      <Button type="button" variant="ghost" size="icon" onClick={() => setShowSecret((value) => !value)}>
-                        {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </Button>
                     </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="accessToken">access_token</Label>
-                    <div className="flex items-center gap-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="verifyToken">verify_token</Label>
+                      <Input
+                        id="verifyToken"
+                        value={verifyToken}
+                        onChange={(event) => setVerifyToken(event.target.value)}
+                        placeholder="Webhook verify token"
+                      />
+                    </div>
+                    <div className="space-y-2 md:col-span-2">
+                      <Label htmlFor="accessToken">access_token</Label>
                       <Input
                         id="accessToken"
-                        type={showToken ? "text" : "password"}
                         value={accessToken}
                         onChange={(event) => setAccessToken(event.target.value)}
                         placeholder="Meta access token"
                       />
-                      <Button type="button" variant="ghost" size="icon" onClick={() => setShowToken((value) => !value)}>
-                        {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </div>
+                    <div className="md:col-span-2">
+                      <Button
+                        onClick={() => void handleValidateCredentials()}
+                        disabled={updateCredentials.isPending || onboardingCheck.isPending}
+                      >
+                        {onboardingCheck.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                        Save and Validate Manual Credentials
                       </Button>
                     </div>
                   </div>
-                </div>
+                </details>
               )}
 
               <div className="flex flex-wrap items-center gap-2">
@@ -502,26 +603,17 @@ export default function MerchantSettings() {
                 </Alert>
               )}
 
-              {canEditCredentials && (
-                <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2">
+                {isWizardRoute && (
                   <Button
-                    onClick={() => void handleValidateCredentials()}
-                    disabled={updateCredentials.isPending || onboardingCheck.isPending}
+                    variant="outline"
+                    onClick={() => goToWizardStep("connectivity")}
+                    disabled={!canAdvanceFromCredentials}
                   >
-                    {onboardingCheck.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-                    Save and Validate Step 1
+                    Continue to Step 2
                   </Button>
-                  {isWizardRoute && (
-                    <Button
-                      variant="outline"
-                      onClick={() => goToWizardStep("connectivity")}
-                      disabled={!canAdvanceFromCredentials}
-                    >
-                      Continue to Step 2
-                    </Button>
-                  )}
-                </div>
-              )}
+                )}
+              </div>
             </section>
             )}
 

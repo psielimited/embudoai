@@ -31,6 +31,7 @@ const PricingPage = lazyRetry(() => import("@/pages/PricingPage"));
 const Signup = lazyRetry(() => import("@/pages/Signup"));
 const Billing = lazyRetry(() => import("@/pages/Billing"));
 const AuthCallback = lazyRetry(() => import("@/pages/AuthCallback"));
+const MetaCallback = lazyRetry(() => import("@/pages/MetaCallback"));
 const PrivacyPolicy = lazyRetry(() => import("@/pages/PrivacyPolicy"));
 const DataDeletionPolicy = lazyRetry(() => import("@/pages/DataDeletionPolicy"));
 const Dashboard = lazyRetry(() => import("@/pages/Dashboard"));
@@ -104,6 +105,7 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<PublicLayout><Signup /></PublicLayout>} />
             <Route path="/auth/callback" element={<AuthCallback />} />
+            <Route path="/auth/meta/callback" element={<PublicLayout><MetaCallback /></PublicLayout>} />
             <Route path="/" element={<PublicLayout><LandingPage /></PublicLayout>} />
             <Route path="/pricing" element={<PublicLayout><PricingPage /></PublicLayout>} />
             <Route path="/privacy" element={<PublicLayout><PrivacyPolicy /></PublicLayout>} />
