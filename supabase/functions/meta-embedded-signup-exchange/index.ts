@@ -107,15 +107,17 @@ Deno.serve(async (req) => {
       return json({ error: "State redirect mismatch. Please retry connection." }, 400);
     }
 
-    const exchangeWithRedirect = async (candidateRedirectUri: string) => {
+    const exchangeWithRedirect = async (candidateRedirectUri: string | null) => {
       const exchangeUrl = new URL(`https://graph.facebook.com/${graphVersion}/oauth/access_token`);
       exchangeUrl.searchParams.set("client_id", metaAppId);
       exchangeUrl.searchParams.set("client_secret", metaAppSecret);
-      exchangeUrl.searchParams.set("redirect_uri", candidateRedirectUri);
+      if (candidateRedirectUri) {
+        exchangeUrl.searchParams.set("redirect_uri", candidateRedirectUri);
+      }
       exchangeUrl.searchParams.set("code", code);
       const res = await fetch(exchangeUrl.toString());
       const body = await res.json().catch(() => ({}));
-      return { res, body, redirectUri: candidateRedirectUri };
+      return { res, body, redirectUri: candidateRedirectUri ?? "(omitted)" };
     };
 
     console.log("meta exchange attempt", {
@@ -129,7 +131,8 @@ Deno.serve(async (req) => {
     });
 
     const popupDefaultRedirect = "https://www.facebook.com/connect/login_success.html";
-    const redirectCandidates = Array.from(new Set([redirectUri, popupDefaultRedirect]));
+    // For Meta business embedded signup auth codes, redirect_uri is sometimes expected to be omitted in exchange.
+    const redirectCandidates = [null, redirectUri, popupDefaultRedirect];
     let tokenAttempt: { res: Response; body: any; redirectUri: string } | null = null;
     const attemptErrors: Array<Record<string, unknown>> = [];
 
@@ -165,7 +168,7 @@ Deno.serve(async (req) => {
       return json({
         error: "Failed to exchange authorization code",
         details: maybeRedirectMismatch
-          ? "Error validating verification code. Ensure redirect_uri in client and server exactly matches Meta Login configuration."
+          ? "Error validating verification code. Meta rejected all exchange variants (omitted redirect_uri, app callback URI, FB popup URI). Verify META_APP_ID/META_APP_SECRET belong to the same app as config_id, and retry with a fresh code."
           : truncate((lastAttempt as any)?.error ?? lastAttempt),
       }, 400);
     }
