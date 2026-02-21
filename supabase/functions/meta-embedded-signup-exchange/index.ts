@@ -65,6 +65,11 @@ Deno.serve(async (req) => {
     }
 
     if (redirectUri !== configuredRedirectUri) {
+      console.error("redirect_uri mismatch before exchange", {
+        merchant_id: merchantId,
+        client_redirect_uri: redirectUri,
+        server_redirect_uri: configuredRedirectUri,
+      });
       return json({
         error: "Redirect URI mismatch",
         details: "The redirect_uri sent by client does not match META_REDIRECT_URI configured on server. They must be identical for code exchange.",
@@ -108,9 +113,26 @@ Deno.serve(async (req) => {
     exchangeUrl.searchParams.set("redirect_uri", redirectUri);
     exchangeUrl.searchParams.set("code", code);
 
+    console.log("meta exchange attempt", {
+      merchant_id: merchantId,
+      graph_version: graphVersion,
+      redirect_uri: redirectUri,
+      app_id_suffix: metaAppId.slice(-6),
+      has_code: !!code,
+      code_prefix: code.slice(0, 12),
+      state_prefix: state.slice(0, 12),
+    });
+
     const tokenRes = await fetch(exchangeUrl.toString());
     const tokenJson = await tokenRes.json().catch(() => ({}));
     if (!tokenRes.ok || !tokenJson?.access_token) {
+      console.error("meta exchange failed", {
+        merchant_id: merchantId,
+        status: tokenRes.status,
+        redirect_uri: redirectUri,
+        configured_redirect_uri: configuredRedirectUri,
+        graph_error: tokenJson?.error ?? tokenJson,
+      });
       const message = JSON.stringify(tokenJson?.error ?? tokenJson);
       const maybeRedirectMismatch = message.includes("redirect_uri");
       return json({
@@ -122,6 +144,11 @@ Deno.serve(async (req) => {
     }
 
     const accessToken = tokenJson.access_token as string;
+    console.log("meta exchange succeeded", {
+      merchant_id: merchantId,
+      expires_in: tokenJson?.expires_in ?? null,
+      token_last4: accessToken.slice(-4),
+    });
 
     // Try to discover WABA + phone ids; accept frontend hints if discovery fails.
     let resolvedWabaId: string | null = hintedWabaId ?? null;
@@ -158,6 +185,13 @@ Deno.serve(async (req) => {
     }
 
     if (!resolvedPhoneId || !resolvedWabaId) {
+      console.error("meta asset resolution failed", {
+        merchant_id: merchantId,
+        resolved_waba_id: resolvedWabaId,
+        resolved_phone_id: resolvedPhoneId,
+        hint_waba_id: hintedWabaId ?? null,
+        hint_phone_id: hintedPhoneId ?? null,
+      });
       await service
         .from("merchant_settings")
         .upsert({
@@ -185,7 +219,13 @@ Deno.serve(async (req) => {
         whatsapp_verify_token: defaultVerifyToken,
       })
       .eq("id", merchant.id);
-    if (merchantUpdate.error) return json({ error: "Failed to persist merchant credentials" }, 500);
+    if (merchantUpdate.error) {
+      console.error("failed to persist merchant embedded credentials", {
+        merchant_id: merchant.id,
+        error: merchantUpdate.error,
+      });
+      return json({ error: "Failed to persist merchant credentials" }, 500);
+    }
 
     await service
       .from("merchant_settings")
@@ -203,6 +243,13 @@ Deno.serve(async (req) => {
           discovery: discoveryPayload,
         },
       }, { onConflict: "merchant_id" });
+
+    console.log("embedded signup persistence complete", {
+      merchant_id: merchant.id,
+      waba_id: resolvedWabaId,
+      phone_number_id: resolvedPhoneId,
+      token_last4: tokenLast4,
+    });
 
     await service
       .from("meta_signup_nonces")
