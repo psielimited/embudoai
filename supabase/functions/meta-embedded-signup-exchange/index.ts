@@ -130,8 +130,14 @@ Deno.serve(async (req) => {
 
     let tokenAttempt = await exchangeWithRedirect(redirectUri);
     const firstError = tokenAttempt.body?.error ?? {};
+    const firstErrorRaw = JSON.stringify(firstError);
+    const firstSubcode = Number(firstError?.error_subcode ?? 0);
     const isRedirectMismatch = !tokenAttempt.res.ok
-      && Number(firstError?.error_subcode ?? 0) === 36008;
+      && (
+        firstSubcode === 36008
+        || firstErrorRaw.toLowerCase().includes("redirect_uri")
+        || String(firstError?.message ?? "").toLowerCase().includes("redirect_uri")
+      );
 
     // FB JS popup flows may issue auth code against the default popup redirect.
     if (isRedirectMismatch) {
@@ -142,6 +148,12 @@ Deno.serve(async (req) => {
         retry_redirect_uri: popupDefaultRedirect,
       });
       tokenAttempt = await exchangeWithRedirect(popupDefaultRedirect);
+      console.log("meta exchange fallback result", {
+        merchant_id: merchantId,
+        status: tokenAttempt.res.status,
+        redirect_uri: popupDefaultRedirect,
+        graph_error: tokenAttempt.body?.error ?? tokenAttempt.body,
+      });
     }
 
     if (!tokenAttempt.res.ok || !tokenAttempt.body?.access_token) {
