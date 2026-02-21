@@ -107,11 +107,16 @@ Deno.serve(async (req) => {
       return json({ error: "State redirect mismatch. Please retry connection." }, 400);
     }
 
-    const exchangeUrl = new URL(`https://graph.facebook.com/${graphVersion}/oauth/access_token`);
-    exchangeUrl.searchParams.set("client_id", metaAppId);
-    exchangeUrl.searchParams.set("client_secret", metaAppSecret);
-    exchangeUrl.searchParams.set("redirect_uri", redirectUri);
-    exchangeUrl.searchParams.set("code", code);
+    const exchangeWithRedirect = async (candidateRedirectUri: string) => {
+      const exchangeUrl = new URL(`https://graph.facebook.com/${graphVersion}/oauth/access_token`);
+      exchangeUrl.searchParams.set("client_id", metaAppId);
+      exchangeUrl.searchParams.set("client_secret", metaAppSecret);
+      exchangeUrl.searchParams.set("redirect_uri", candidateRedirectUri);
+      exchangeUrl.searchParams.set("code", code);
+      const res = await fetch(exchangeUrl.toString());
+      const body = await res.json().catch(() => ({}));
+      return { res, body, redirectUri: candidateRedirectUri };
+    };
 
     console.log("meta exchange attempt", {
       merchant_id: merchantId,
@@ -123,31 +128,46 @@ Deno.serve(async (req) => {
       state_prefix: state.slice(0, 12),
     });
 
-    const tokenRes = await fetch(exchangeUrl.toString());
-    const tokenJson = await tokenRes.json().catch(() => ({}));
-    if (!tokenRes.ok || !tokenJson?.access_token) {
+    let tokenAttempt = await exchangeWithRedirect(redirectUri);
+    const firstError = tokenAttempt.body?.error ?? {};
+    const isRedirectMismatch = !tokenAttempt.res.ok
+      && Number(firstError?.error_subcode ?? 0) === 36008;
+
+    // FB JS popup flows may issue auth code against the default popup redirect.
+    if (isRedirectMismatch) {
+      const popupDefaultRedirect = "https://www.facebook.com/connect/login_success.html";
+      console.warn("meta exchange redirect mismatch; retrying with popup default redirect", {
+        merchant_id: merchantId,
+        first_redirect_uri: redirectUri,
+        retry_redirect_uri: popupDefaultRedirect,
+      });
+      tokenAttempt = await exchangeWithRedirect(popupDefaultRedirect);
+    }
+
+    if (!tokenAttempt.res.ok || !tokenAttempt.body?.access_token) {
       console.error("meta exchange failed", {
         merchant_id: merchantId,
-        status: tokenRes.status,
-        redirect_uri: redirectUri,
+        status: tokenAttempt.res.status,
+        redirect_uri: tokenAttempt.redirectUri,
         configured_redirect_uri: configuredRedirectUri,
-        graph_error: tokenJson?.error ?? tokenJson,
+        graph_error: tokenAttempt.body?.error ?? tokenAttempt.body,
       });
-      const message = JSON.stringify(tokenJson?.error ?? tokenJson);
+      const message = JSON.stringify(tokenAttempt.body?.error ?? tokenAttempt.body);
       const maybeRedirectMismatch = message.includes("redirect_uri");
       return json({
         error: "Failed to exchange authorization code",
         details: maybeRedirectMismatch
           ? "Error validating verification code. Ensure redirect_uri in client and server exactly matches Meta Login configuration."
-          : truncate(tokenJson?.error ?? tokenJson),
+          : truncate(tokenAttempt.body?.error ?? tokenAttempt.body),
       }, 400);
     }
 
-    const accessToken = tokenJson.access_token as string;
+    const accessToken = tokenAttempt.body.access_token as string;
     console.log("meta exchange succeeded", {
       merchant_id: merchantId,
-      expires_in: tokenJson?.expires_in ?? null,
+      expires_in: tokenAttempt.body?.expires_in ?? null,
       token_last4: accessToken.slice(-4),
+      exchange_redirect_uri: tokenAttempt.redirectUri,
     });
 
     // Try to discover WABA + phone ids; accept frontend hints if discovery fails.
