@@ -2,6 +2,8 @@
  * Compatibility shim: generate-ai-reply now delegates to ai-sales-agent.
  */
 
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -21,10 +23,57 @@ Deno.serve(async (req) => {
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    if (!supabaseUrl || !serviceKey) return json({ error: "Server misconfigured" }, 500);
+    if (!supabaseUrl || !anonKey || !serviceKey) return json({ error: "Server misconfigured" }, 500);
+
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return json({ error: "Unauthorized" }, 401);
+    }
+
+    const token = authHeader.replace("Bearer ", "");
+    const userClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const serviceClient = createClient(supabaseUrl, serviceKey);
+
+    const { data: claimsData, error: claimsError } = await userClient.auth.getClaims(token);
+    if (claimsError || !claimsData?.claims?.sub) {
+      return json({ error: "Unauthorized" }, 401);
+    }
+    const userId = claimsData.claims.sub as string;
 
     const payload = await req.json();
+    if (!payload?.conversation_id || typeof payload.conversation_id !== "string") {
+      return json({ error: "conversation_id is required" }, 400);
+    }
+
+    const [{ data: profile }, { data: conversation }] = await Promise.all([
+      serviceClient
+        .from("profiles")
+        .select("active_org_id")
+        .eq("user_id", userId)
+        .maybeSingle(),
+      serviceClient
+        .from("conversations")
+        .select("id,org_id")
+        .eq("id", payload.conversation_id)
+        .maybeSingle(),
+    ]);
+
+    if (!conversation) return json({ error: "Conversation not found" }, 404);
+    if (!profile?.active_org_id || profile.active_org_id !== conversation.org_id) {
+      return json({ error: "Forbidden" }, 403);
+    }
+
+    const { data: membership } = await serviceClient
+      .from("org_members")
+      .select("user_id")
+      .eq("org_id", conversation.org_id)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (!membership) return json({ error: "Forbidden" }, 403);
 
     const res = await fetch(`${supabaseUrl}/functions/v1/ai-sales-agent`, {
       method: "POST",

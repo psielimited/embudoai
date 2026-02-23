@@ -17,6 +17,10 @@ export interface Conversation {
   external_contact: string;
   language: string;
   intent: string | null;
+  last_intent: string | null;
+  last_entities: Record<string, unknown>;
+  lead_score: number;
+  lead_score_reason: Record<string, unknown>;
   status: 'open' | 'waiting_on_customer' | 'needs_handoff' | 'resolved' | 'closed';
   contact_id: string | null;
   lead_id: string | null;

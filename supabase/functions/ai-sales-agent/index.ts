@@ -45,8 +45,21 @@ function json(data: unknown, status = 200) {
   });
 }
 
+function noContent(status = 204) {
+  return new Response(null, { status, headers: corsHeaders });
+}
+
 function truncate(v: unknown, max = 500) {
-  const raw = typeof v === "string" ? v : JSON.stringify(v);
+  let raw: string;
+  if (typeof v === "string") {
+    raw = v;
+  } else {
+    try {
+      raw = JSON.stringify(v);
+    } catch {
+      raw = String(v);
+    }
+  }
   return raw.slice(0, max);
 }
 
@@ -85,6 +98,58 @@ function normalizeConversationStatus(status?: string | null) {
   const allowed = new Set(["open", "waiting_on_customer", "needs_handoff", "resolved", "closed"]);
   if (!status || !allowed.has(status)) return null;
   return status as "open" | "waiting_on_customer" | "needs_handoff" | "resolved" | "closed";
+}
+
+// deno-lint-ignore no-explicit-any
+async function setConversationAiState(
+  supabase: any,
+  conversationId: string,
+  aiStatus: "queued" | "generating" | "ready" | "failed" | "idle",
+  aiLastError: string | null,
+) {
+  await supabase
+    .from("conversations")
+    .update({ ai_status: aiStatus, ai_last_error: aiLastError })
+    .eq("id", conversationId);
+}
+
+// deno-lint-ignore no-explicit-any
+async function createSkippedRun(
+  supabase: any,
+  params: {
+    org_id: string;
+    merchant_id: string;
+    conversation_id: string;
+    trigger_message_id?: string;
+    reason: string;
+    details?: Record<string, unknown>;
+  },
+) {
+  const result = await supabase
+    .from("ai_agent_runs")
+    .insert({
+      org_id: params.org_id,
+      merchant_id: params.merchant_id,
+      conversation_id: params.conversation_id,
+      trigger_message_id: params.trigger_message_id ?? null,
+      model: MODEL,
+      status: "skipped",
+      input_summary: {
+        reason: params.reason,
+        ...(params.details ?? {}),
+      },
+      output: {},
+    })
+    .select("id")
+    .maybeSingle();
+
+  if (result.error?.code === "23505") {
+    return { dedup: true, runId: null as string | null };
+  }
+  if (result.error) {
+    throw new Error(`Failed to create skipped run: ${truncate(result.error)}`);
+  }
+  return { dedup: false, runId: result.data?.id ?? null };
 }
 
 // deno-lint-ignore no-explicit-any
@@ -188,6 +253,7 @@ Deno.serve(async (req) => {
     if (convError || !conv) return json({ error: "Conversation not found" }, 404);
 
     const nowIso = new Date().toISOString();
+    await setConversationAiState(supabase, conv.id, "generating", null);
 
     // plan gating
     const { data: subscription } = await supabase
@@ -220,33 +286,42 @@ Deno.serve(async (req) => {
           trial_expired: trialExpired,
         },
       });
-      return new Response(null, { status: 204, headers: corsHeaders });
+      await createSkippedRun(supabase, {
+        org_id: conv.org_id,
+        merchant_id: conv.merchant_id,
+        conversation_id: conv.id,
+        trigger_message_id: body.trigger_message_id,
+        reason: "plan_blocked",
+        details: {
+          subscription_status: subscription?.status ?? "unknown",
+          ai_enabled: aiEnabledByPlan,
+          trial_expired: trialExpired,
+        },
+      });
+      await setConversationAiState(supabase, conv.id, "failed", "AI blocked by plan");
+      return noContent();
     }
 
     // governance
     if (!conv.ai_enabled || conv.ai_paused || conv.status === "needs_handoff") {
-      const { data: skippedRun } = await supabase
-        .from("ai_agent_runs")
-        .insert({
-          org_id: conv.org_id,
-          merchant_id: conv.merchant_id,
-          conversation_id: conv.id,
-          trigger_message_id: body.trigger_message_id ?? null,
-          model: MODEL,
-          status: "skipped",
-          input_summary: { reason: "governance_block", ai_enabled: conv.ai_enabled, ai_paused: conv.ai_paused, status: conv.status },
-          output: {},
-        })
-        .select("id")
-        .maybeSingle();
-      return new Response(
-        JSON.stringify({ ok: true, skipped: true, run_id: skippedRun?.id ?? null }),
-        { status: 204, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+      await createSkippedRun(supabase, {
+        org_id: conv.org_id,
+        merchant_id: conv.merchant_id,
+        conversation_id: conv.id,
+        trigger_message_id: body.trigger_message_id,
+        reason: "governance_block",
+        details: {
+          ai_enabled: conv.ai_enabled,
+          ai_paused: conv.ai_paused,
+          status: conv.status,
+        },
+      });
+      await setConversationAiState(supabase, conv.id, "ready", null);
+      return noContent();
     }
 
     if (!lovableApiKey) {
-      await supabase.from("conversations").update({ ai_status: "failed", ai_last_error: "LOVABLE_API_KEY not configured" }).eq("id", conv.id);
+      await setConversationAiState(supabase, conv.id, "failed", "LOVABLE_API_KEY not configured");
       return json({ error: "AI not configured" }, 500);
     }
 
@@ -267,14 +342,29 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (runInsert.error && runInsert.error.code === "23505" && body.trigger_message_id) {
-      return json({ ok: true, dedup: true, conversation_id: conv.id }, 200);
+      const { data: existingRun } = await supabase
+        .from("ai_agent_runs")
+        .select("id,status")
+        .eq("org_id", conv.org_id)
+        .eq("conversation_id", conv.id)
+        .eq("trigger_message_id", body.trigger_message_id)
+        .maybeSingle();
+
+      if (existingRun?.status === "failed") {
+        await setConversationAiState(supabase, conv.id, "failed", "Duplicate trigger already failed");
+      } else if (existingRun?.status === "started") {
+        await setConversationAiState(supabase, conv.id, "generating", null);
+      } else {
+        await setConversationAiState(supabase, conv.id, "ready", null);
+      }
+
+      return json({ ok: true, dedup: true, run_id: existingRun?.id ?? null, conversation_id: conv.id }, 200);
     }
     if (runInsert.error || !runInsert.data) {
+      await setConversationAiState(supabase, conv.id, "failed", "Failed to create agent run");
       return json({ error: "Failed to create agent run" }, 500);
     }
     runId = runInsert.data.id;
-
-    await supabase.from("conversations").update({ ai_status: "generating", ai_last_error: null }).eq("id", conv.id);
 
     // ensure opportunity
     let opportunityId = conv.opportunity_id;
@@ -485,23 +575,46 @@ Rules:
             if (!opportunityId) throw new Error("Missing opportunity_id for stage move");
             const stageKey = String(action.payload.stage_key ?? "");
             const stageId = await findStageByKey(supabase, conv.org_id, conv.merchant_id, stageKey);
-            if (!stageId) throw new Error(`No stage found for key: ${stageKey}`);
+            if (!stageId) {
+              if (stageKey === "needs_follow_up") {
+                await markActionStatus(supabase, action.id, "skipped", "No follow-up stage configured");
+                continue;
+              }
+              throw new Error(`No stage found for key: ${stageKey}`);
+            }
 
             const { data: opp } = await supabase
               .from("opportunities")
-              .select("id,version,stage_id")
+              .select("id,version,stage_id,owner_user_id")
               .eq("id", opportunityId)
               .single();
+
+            if (!opp) {
+              throw new Error("Opportunity missing while moving stage");
+            }
+
+            if (opp.stage_id === stageId) {
+              await markActionStatus(supabase, action.id, "skipped", "Opportunity already in target stage");
+              continue;
+            }
+
+            const actorUserId = ownerUserId ?? opp.owner_user_id ?? null;
+            if (!actorUserId) {
+              throw new Error("Missing actor_user_id for stage move");
+            }
 
             const rpc = await supabase.rpc("rpc_move_opportunity_stage", {
               p_opportunity_id: opportunityId,
               p_to_stage_id: stageId,
-              p_expected_version: opp!.version,
-              p_actor_user_id: ownerUserId,
+              p_expected_version: opp.version,
+              p_actor_user_id: actorUserId,
             });
 
-            if (rpc.error || !rpc.data?.ok) {
-              throw new Error(truncate(rpc.error ?? rpc.data?.error ?? "Stage move failed"));
+            const rpcData = typeof rpc.data === "string"
+              ? JSON.parse(rpc.data)
+              : rpc.data;
+            if (rpc.error || !rpcData?.ok) {
+              throw new Error(truncate(rpc.error ?? rpcData?.error ?? "Stage move failed"));
             }
 
             await markActionStatus(supabase, action.id, "executed");
@@ -510,9 +623,10 @@ Rules:
             if (!ownerUserId) throw new Error("Missing owner for task assignment");
 
             const title = String(action.payload.title ?? "Follow up customer");
-            const dueInHours = Number(action.payload.due_in_hours ?? 24);
+            const dueHoursRaw = Number(action.payload.due_in_hours ?? 24);
+            const dueInHours = Number.isFinite(dueHoursRaw) ? Math.max(1, Math.round(dueHoursRaw)) : 24;
             const notes = String(action.payload.notes ?? "");
-            const dueAt = new Date(Date.now() + Math.max(1, dueInHours) * 3600_000).toISOString();
+            const dueAt = new Date(Date.now() + dueInHours * 3600_000).toISOString();
 
             const taskInsert = await supabase.from("tasks").insert({
               org_id: conv.org_id,
@@ -627,10 +741,7 @@ Rules:
     console.error("ai-sales-agent error:", errorText);
     try {
       if (conversationIdForError) {
-        await supabase.from("conversations").update({
-          ai_status: "failed",
-          ai_last_error: errorText,
-        }).eq("id", conversationIdForError);
+        await setConversationAiState(supabase, conversationIdForError, "failed", errorText);
       }
       if (runId) {
         await supabase.from("ai_agent_runs").update({
