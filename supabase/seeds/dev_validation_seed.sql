@@ -186,25 +186,55 @@ BEGIN
     RETURNING id INTO v_pipeline_id;
   END IF;
 
-  INSERT INTO public.stages (pipeline_id, name, position)
-  SELECT v_pipeline_id, 'Lead', 0
-  WHERE NOT EXISTS (SELECT 1 FROM public.stages WHERE pipeline_id = v_pipeline_id AND lower(name) = 'lead');
+  INSERT INTO public.stages (org_id, pipeline_id, name, position)
+  SELECT v_org_id, v_pipeline_id, 'Lead', 0
+  WHERE NOT EXISTS (
+    SELECT 1
+    FROM public.stages
+    WHERE org_id = v_org_id
+      AND pipeline_id = v_pipeline_id
+      AND lower(name) = 'lead'
+  );
 
-  INSERT INTO public.stages (pipeline_id, name, position)
-  SELECT v_pipeline_id, 'Qualified', 1
-  WHERE NOT EXISTS (SELECT 1 FROM public.stages WHERE pipeline_id = v_pipeline_id AND lower(name) = 'qualified');
+  INSERT INTO public.stages (org_id, pipeline_id, name, position)
+  SELECT v_org_id, v_pipeline_id, 'Qualified', 1
+  WHERE NOT EXISTS (
+    SELECT 1
+    FROM public.stages
+    WHERE org_id = v_org_id
+      AND pipeline_id = v_pipeline_id
+      AND lower(name) = 'qualified'
+  );
 
-  INSERT INTO public.stages (pipeline_id, name, position)
-  SELECT v_pipeline_id, 'Proposal', 2
-  WHERE NOT EXISTS (SELECT 1 FROM public.stages WHERE pipeline_id = v_pipeline_id AND lower(name) = 'proposal');
+  INSERT INTO public.stages (org_id, pipeline_id, name, position)
+  SELECT v_org_id, v_pipeline_id, 'Proposal', 2
+  WHERE NOT EXISTS (
+    SELECT 1
+    FROM public.stages
+    WHERE org_id = v_org_id
+      AND pipeline_id = v_pipeline_id
+      AND lower(name) = 'proposal'
+  );
 
-  INSERT INTO public.stages (pipeline_id, name, position)
-  SELECT v_pipeline_id, 'Won', 3
-  WHERE NOT EXISTS (SELECT 1 FROM public.stages WHERE pipeline_id = v_pipeline_id AND lower(name) = 'won');
+  INSERT INTO public.stages (org_id, pipeline_id, name, position)
+  SELECT v_org_id, v_pipeline_id, 'Won', 3
+  WHERE NOT EXISTS (
+    SELECT 1
+    FROM public.stages
+    WHERE org_id = v_org_id
+      AND pipeline_id = v_pipeline_id
+      AND lower(name) = 'won'
+  );
 
-  INSERT INTO public.stages (pipeline_id, name, position)
-  SELECT v_pipeline_id, 'Lost', 4
-  WHERE NOT EXISTS (SELECT 1 FROM public.stages WHERE pipeline_id = v_pipeline_id AND lower(name) = 'lost');
+  INSERT INTO public.stages (org_id, pipeline_id, name, position)
+  SELECT v_org_id, v_pipeline_id, 'Lost', 4
+  WHERE NOT EXISTS (
+    SELECT 1
+    FROM public.stages
+    WHERE org_id = v_org_id
+      AND pipeline_id = v_pipeline_id
+      AND lower(name) = 'lost'
+  );
 
   SELECT id INTO v_stage_lead_id FROM public.stages WHERE pipeline_id = v_pipeline_id AND lower(name) = 'lead' LIMIT 1;
   SELECT id INTO v_stage_qualified_id FROM public.stages WHERE pipeline_id = v_pipeline_id AND lower(name) = 'qualified' LIMIT 1;
