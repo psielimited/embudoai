@@ -363,7 +363,6 @@ Deno.serve(async (req) => {
         channel: "whatsapp",
         external_contact: seedContact,
         contact_id: contactId,
-        lead_id: leadId,
       });
     }
 

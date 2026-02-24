@@ -271,8 +271,8 @@ BEGIN
     RETURNING id INTO v_contact_id;
   END IF;
 
-  INSERT INTO public.contact_channels (org_id, channel, external_contact, contact_id, lead_id)
-  SELECT v_org_id, 'whatsapp', '18095550001', v_contact_id, v_lead_id
+  INSERT INTO public.contact_channels (org_id, channel, external_contact, contact_id)
+  SELECT v_org_id, 'whatsapp', '18095550001', v_contact_id
   WHERE NOT EXISTS (
     SELECT 1
     FROM public.contact_channels
