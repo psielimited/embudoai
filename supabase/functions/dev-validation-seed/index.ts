@@ -432,7 +432,6 @@ Deno.serve(async (req) => {
           ai_enabled: true,
           ai_paused: false,
           ai_status: "ready",
-          lead_id: leadId,
           contact_id: contactId,
           opportunity_id: opportunityId,
           owner_user_id: user.id,

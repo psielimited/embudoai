@@ -9,7 +9,7 @@
 
 DO $$
 DECLARE
-  target_email text := 'allen.rodriguez@gmail.com';
+  target_email text := 'embudex04@yopmail.com';
 
   v_user_id uuid;
   v_org_id uuid;
@@ -315,7 +315,7 @@ BEGIN
       org_id, merchant_id, external_contact, language, intent, last_intent,
       last_entities, lead_score, lead_score_reason,
       status, ai_enabled, ai_paused, ai_status,
-      lead_id, contact_id, opportunity_id, owner_user_id
+      contact_id, opportunity_id, owner_user_id
     )
     VALUES (
       v_org_id,
@@ -331,7 +331,6 @@ BEGIN
       true,
       false,
       'ready',
-      v_lead_id,
       v_contact_id,
       v_opportunity_id,
       v_user_id
