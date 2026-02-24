@@ -1,14 +1,17 @@
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import { Loader2, Building2, Users, Shield, Save } from "lucide-react";
+import { Loader2, Building2, Users, Shield, Save, Database } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
+import { callEdge } from "@/lib/edge";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useOrgs,
   useActiveOrg,
@@ -40,6 +43,8 @@ const orgSettingsSchema = z
 type OrgSettingsForm = z.infer<typeof orgSettingsSchema>;
 
 export default function OrgSettings() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
   const { data: activeOrgId } = useActiveOrg();
   const { data: orgs = [], isLoading } = useOrgs();
   const { data: members = [] } = useOrgMembers(activeOrgId ?? undefined);
@@ -47,8 +52,15 @@ export default function OrgSettings() {
   const { data: orgSettings } = useOrgSettings(activeOrgId ?? undefined);
   const updateOrg = useUpdateOrg();
   const upsertOrgSettings = useUpsertOrgSettings();
+  const [isSeeding, setIsSeeding] = useState(false);
+  const [isCleaning, setIsCleaning] = useState(false);
 
   const activeOrg = orgs.find((org) => org.id === activeOrgId);
+  const isAdminUser = useMemo(() => {
+    if (!user) return false;
+    const currentMembership = members.find((member) => member.user_id === user.id);
+    return currentMembership?.role === "admin" || currentMembership?.role === "org_admin";
+  }, [members, user]);
 
   const {
     register,
@@ -111,6 +123,33 @@ export default function OrgSettings() {
     } catch (error) {
       console.error(error);
       toast.error("Failed to save organization settings");
+    }
+  };
+
+  const runDevSeed = async (action: "seed" | "cleanup") => {
+    if (!activeOrgId) return;
+    const setPending = action === "seed" ? setIsSeeding : setIsCleaning;
+    setPending(true);
+    try {
+      const result = await callEdge<{
+        ok: boolean;
+        action: "seed" | "cleanup";
+        conversation_id?: string;
+        merchant_id?: string;
+      }>("dev-validation-seed", { action });
+      await queryClient.invalidateQueries();
+      if (action === "seed") {
+        toast.success(
+          `Seed data ready${result.conversation_id ? ` (conversation ${result.conversation_id.slice(0, 8)}...)` : ""}`,
+        );
+      } else {
+        toast.success("Seed data cleaned up");
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error(`Failed to ${action} dev validation data`);
+    } finally {
+      setPending(false);
     }
   };
 
@@ -208,6 +247,39 @@ export default function OrgSettings() {
           </form>
         </CardContent>
       </Card>
+
+      {isAdminUser && (
+        <Card className="mt-6 border-dashed">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Database className="h-4 w-4" />
+              Dev Tools
+            </CardTitle>
+            <CardDescription>
+              Seed a complete validation fixture (merchant, conversation, opportunity, agent run, and queued outbound
+              job) for quick testing without full onboarding.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={isSeeding || isCleaning}
+              onClick={() => void runDevSeed("seed")}
+            >
+              {isSeeding ? "Seeding..." : "Seed Validation Data"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isSeeding || isCleaning}
+              onClick={() => void runDevSeed("cleanup")}
+            >
+              {isCleaning ? "Cleaning..." : "Cleanup Seed Data"}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
     </>
   );
 }
