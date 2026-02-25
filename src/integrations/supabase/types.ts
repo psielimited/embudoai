@@ -738,6 +738,7 @@ export type Database = {
       }
       conversations: {
         Row: {
+          assignee_user_id: string | null
           ai_enabled: boolean
           ai_last_error: string | null
           ai_last_generated_at: string | null
@@ -773,6 +774,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          assignee_user_id?: string | null
           ai_enabled?: boolean
           ai_last_error?: string | null
           ai_last_generated_at?: string | null
@@ -808,6 +810,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          assignee_user_id?: string | null
           ai_enabled?: boolean
           ai_last_error?: string | null
           ai_last_generated_at?: string | null
@@ -843,6 +846,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "conversations_assignee_user_id_fkey"
+            columns: ["assignee_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "conversations_contact_id_fkey"
             columns: ["contact_id"]
@@ -1010,8 +1020,106 @@ export type Database = {
           },
         ]
       }
+      lead_notes: {
+        Row: {
+          body: string
+          conversation_id: string | null
+          created_at: string
+          created_by_user_id: string
+          deleted_at: string | null
+          deleted_by_user_id: string | null
+          id: string
+          lead_id: string
+          merchant_id: string
+          org_id: string
+          updated_at: string | null
+          updated_by_user_id: string | null
+        }
+        Insert: {
+          body: string
+          conversation_id?: string | null
+          created_at?: string
+          created_by_user_id: string
+          deleted_at?: string | null
+          deleted_by_user_id?: string | null
+          id?: string
+          lead_id: string
+          merchant_id: string
+          org_id: string
+          updated_at?: string | null
+          updated_by_user_id?: string | null
+        }
+        Update: {
+          body?: string
+          conversation_id?: string | null
+          created_at?: string
+          created_by_user_id?: string
+          deleted_at?: string | null
+          deleted_by_user_id?: string | null
+          id?: string
+          lead_id?: string
+          merchant_id?: string
+          org_id?: string
+          updated_at?: string | null
+          updated_by_user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_notes_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_notes_created_by_user_id_fkey"
+            columns: ["created_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_notes_deleted_by_user_id_fkey"
+            columns: ["deleted_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_notes_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_notes_merchant_id_fkey"
+            columns: ["merchant_id"]
+            isOneToOne: false
+            referencedRelation: "merchants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_notes_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_notes_updated_by_user_id_fkey"
+            columns: ["updated_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       leads: {
         Row: {
+          assigned_at: string | null
+          assigned_by_user_id: string | null
+          assignee_user_id: string | null
           consent: Json
           converted_contact_id: string | null
           created_at: string
@@ -1030,6 +1138,9 @@ export type Database = {
           utm: Json
         }
         Insert: {
+          assigned_at?: string | null
+          assigned_by_user_id?: string | null
+          assignee_user_id?: string | null
           consent?: Json
           converted_contact_id?: string | null
           created_at?: string
@@ -1048,6 +1159,9 @@ export type Database = {
           utm?: Json
         }
         Update: {
+          assigned_at?: string | null
+          assigned_by_user_id?: string | null
+          assignee_user_id?: string | null
           consent?: Json
           converted_contact_id?: string | null
           created_at?: string
@@ -1066,6 +1180,20 @@ export type Database = {
           utm?: Json
         }
         Relationships: [
+          {
+            foreignKeyName: "leads_assigned_by_user_id_fkey"
+            columns: ["assigned_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_assignee_user_id_fkey"
+            columns: ["assignee_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "leads_converted_contact_id_fkey"
             columns: ["converted_contact_id"]

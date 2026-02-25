@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useLeads, useCreateLead } from "@/hooks/useLeads";
+import { useTeamMembers } from "@/hooks/useTeamMembers";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -48,6 +49,7 @@ export default function LeadList() {
   });
 
   const { leads = [], total, qualified, negotiating, won, lost, isLoading } = useLeads();
+  const { data: teamMembers = [] } = useTeamMembers();
   const createLead = useCreateLead();
 
   const filteredLeads = leads.filter((lead: any) => {
@@ -123,6 +125,31 @@ export default function LeadList() {
       key: "lead_stage",
       header: "Stage",
       render: (l: any) => stageBadge(l.lead_stage || "new"),
+    },
+    {
+      key: "assignee",
+      header: "Assignee",
+      render: (l: any) => {
+        if (!l.assignee_user_id) {
+          return <span className="text-muted-foreground">Unassigned</span>;
+        }
+        const member = teamMembers.find((item) => item.user_id === l.assignee_user_id);
+        const label = member?.display_name ?? l.assignee_user_id.slice(0, 8);
+        const initials = label
+          .split(" ")
+          .filter(Boolean)
+          .slice(0, 2)
+          .map((part) => part[0]?.toUpperCase())
+          .join("");
+        return (
+          <div className="flex items-center gap-2">
+            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-muted text-[10px] font-semibold">
+              {initials || "NA"}
+            </span>
+            <span className="text-muted-foreground">{label}</span>
+          </div>
+        );
+      },
     },
     {
       key: "source",

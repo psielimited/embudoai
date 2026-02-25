@@ -8,7 +8,7 @@ export function useLeads(filters?: { status?: string; owner?: string }) {
     queryFn: async () => {
       let q = supabase
         .from("leads")
-        .select("id,full_name,status,lead_stage,source,emails,created_at")
+        .select("id,full_name,status,lead_stage,assignee_user_id,assigned_at,assigned_by_user_id,source,emails,created_at")
         .order("created_at", { ascending: false });
       if (filters?.status) q = q.eq("status", filters.status);
       if (filters?.owner) q = q.eq("owner_user_id", filters.owner);

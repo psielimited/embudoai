@@ -21,6 +21,7 @@ import {
   useGlobalConversations,
   type ConversationListRow,
 } from "@/hooks/useConversations";
+import { useTeamMembers } from "@/hooks/useTeamMembers";
 
 function hasUnread(lastInboundAt: string | null, lastHumanOutboundAt: string | null) {
   if (!lastInboundAt) return false;
@@ -36,6 +37,7 @@ export default function Conversations() {
 
   const { data: merchants = [] } = useMerchants();
   const { data: owners = [] } = useConversationOwners();
+  const { data: teamMembers = [] } = useTeamMembers();
   const { data: unreadCounts } = useConversationUnreadCounts();
   const { data: conversations = [], isLoading } = useGlobalConversations({
     merchantId: merchantFilter,
@@ -71,6 +73,30 @@ export default function Conversations() {
     );
   };
 
+  const assigneeLabel = (conversation: ConversationListRow) => {
+    const assigneeId = conversation.assignee_user_id ?? conversation.lead_assignee_user_id;
+    if (!assigneeId) {
+      return <span className="text-muted-foreground">Unassigned</span>;
+    }
+    const member = teamMembers.find((item) => item.user_id === assigneeId);
+    const label = member?.display_name ?? assigneeId.slice(0, 8);
+    const initials = label
+      .split(" ")
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join("");
+
+    return (
+      <div className="flex items-center gap-2">
+        <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-muted text-[10px] font-semibold">
+          {initials || "NA"}
+        </span>
+        <span className="text-muted-foreground">{label}</span>
+      </div>
+    );
+  };
+
   const columns = [
     {
       key: "external_contact",
@@ -101,6 +127,11 @@ export default function Conversations() {
           {conversation.owner_user_id ? ownerLabelMap.get(conversation.owner_user_id) ?? "Assigned" : "Unassigned"}
         </span>
       ),
+    },
+    {
+      key: "assignee",
+      header: "Assignee",
+      render: (conversation: ConversationListRow) => assigneeLabel(conversation),
     },
     {
       key: "status",

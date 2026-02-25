@@ -42,6 +42,7 @@ export interface Conversation {
   merchant_id: string;
   org_id: string;
   automation_mode: 'ai' | 'human' | 'hybrid';
+  assignee_user_id: string | null;
   external_contact: string;
   language: string;
   intent: string | null;
@@ -79,10 +80,28 @@ export interface Lead {
   full_name: string;
   status: string;
   lead_stage: 'new' | 'contacted' | 'qualified' | 'negotiating' | 'won' | 'lost';
+  assignee_user_id: string | null;
+  assigned_at: string | null;
+  assigned_by_user_id: string | null;
   source: string;
   emails: unknown;
   created_at: string;
   updated_at: string;
+}
+
+export interface LeadNote {
+  id: string;
+  org_id: string;
+  merchant_id: string;
+  lead_id: string;
+  conversation_id: string | null;
+  body: string;
+  created_at: string;
+  created_by_user_id: string;
+  updated_at: string | null;
+  updated_by_user_id: string | null;
+  deleted_at: string | null;
+  deleted_by_user_id: string | null;
 }
 
 export interface Message {

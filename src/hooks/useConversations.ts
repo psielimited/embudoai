@@ -10,6 +10,7 @@ type ConversationListRow = Pick<
   | "id"
   | "merchant_id"
   | "automation_mode"
+  | "assignee_user_id"
   | "external_contact"
   | "status"
   | "updated_at"
@@ -18,6 +19,7 @@ type ConversationListRow = Pick<
   | "last_human_outbound_at"
 > & {
   merchant_name: string | null;
+  lead_assignee_user_id: string | null;
 };
 
 type GlobalConversationFilters = {
@@ -182,7 +184,7 @@ export function useGlobalConversations(filters?: GlobalConversationFilters) {
     queryFn: async () => {
       let query = supabase
         .from("conversations")
-        .select("id,merchant_id,automation_mode,external_contact,status,updated_at,owner_user_id,last_inbound_at,last_human_outbound_at,merchants(name)")
+        .select("id,merchant_id,automation_mode,assignee_user_id,lead_id,external_contact,status,updated_at,owner_user_id,last_inbound_at,last_human_outbound_at,merchants(name),leads(assignee_user_id)")
         .eq("org_id", orgId!)
         .order("updated_at", { ascending: false });
 
@@ -204,11 +206,15 @@ export function useGlobalConversations(filters?: GlobalConversationFilters) {
       if (error) throw error;
 
       return ((data ?? []) as Array<
-        Database["public"]["Tables"]["conversations"]["Row"] & { merchants: { name: string } | null }
+        Database["public"]["Tables"]["conversations"]["Row"] & {
+          merchants: { name: string } | null;
+          leads: { assignee_user_id: string | null } | null;
+        }
       >).map((row) => ({
         id: row.id,
         merchant_id: row.merchant_id,
         automation_mode: row.automation_mode as Conversation["automation_mode"],
+        assignee_user_id: row.assignee_user_id ?? row.leads?.assignee_user_id ?? null,
         external_contact: row.external_contact,
         status: row.status as Conversation["status"],
         updated_at: row.updated_at,
@@ -216,6 +222,7 @@ export function useGlobalConversations(filters?: GlobalConversationFilters) {
         last_inbound_at: row.last_inbound_at,
         last_human_outbound_at: row.last_human_outbound_at,
         merchant_name: row.merchants?.name ?? null,
+        lead_assignee_user_id: row.leads?.assignee_user_id ?? null,
       })) as ConversationListRow[];
     },
   });

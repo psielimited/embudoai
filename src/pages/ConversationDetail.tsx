@@ -9,6 +9,7 @@ import { ConversationWorkflow } from "@/components/ConversationWorkflow";
 import { ConversationTimeline } from "@/components/ConversationTimeline";
 import { AgentRunPanel } from "@/components/AgentRunPanel";
 import { HandoffPanel } from "@/components/HandoffPanel";
+import { LeadIntelligencePanel } from "@/components/LeadIntelligencePanel";
 import { useMerchant } from "@/hooks/useMerchants";
 import { useConversation } from "@/hooks/useConversations";
 import { useMessages } from "@/hooks/useMessages";
@@ -31,7 +32,7 @@ function useLinkedLead(leadId: string | null | undefined) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("leads")
-        .select("id, full_name, status")
+        .select("id, org_id, full_name, status, lead_stage, assignee_user_id, tags, created_at")
         .eq("id", leadId!)
         .maybeSingle();
       if (error) throw error;
@@ -351,6 +352,7 @@ export default function ConversationDetail() {
     groups[date].push(message);
     return groups;
   }, {} as Record<string, typeof messages>);
+  const lastMessageAt = messages.length > 0 ? messages[messages.length - 1].created_at : null;
 
   return (
     <>
@@ -378,7 +380,8 @@ export default function ConversationDetail() {
         }
       />
 
-      <Card>
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,2fr)_360px]">
+        <Card>
         <CardHeader className="pb-4">
           <div className="flex flex-wrap items-center gap-6 text-sm">
             <div>
@@ -489,7 +492,7 @@ export default function ConversationDetail() {
             {isAiWorking && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                <span>AI drafting…</span>
+                <span>AI drafting...</span>
               </div>
             )}
             {aiStatus === "failed" && conversation?.ai_last_error && (
@@ -563,7 +566,18 @@ export default function ConversationDetail() {
             </div>
           )}
         </CardContent>
-      </Card>
+        </Card>
+        {conversation && (
+          <LeadIntelligencePanel
+            lead={linkedLead ?? null}
+            conversationId={conversation.id}
+            conversationMerchantId={conversation.merchant_id}
+            automationMode={conversation.automation_mode}
+            lastMessageAt={lastMessageAt}
+            currentUserId={user?.id ?? null}
+          />
+        )}
+      </div>
       <div className="mt-6">
         <AgentRunPanel conversationId={conversationId} />
       </div>
