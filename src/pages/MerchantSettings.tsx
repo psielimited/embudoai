@@ -184,8 +184,13 @@ export default function MerchantSettings() {
   };
 
   const onSendTest = async () => {
+    const recipient = testRecipient.trim();
+    if (!recipient) {
+      toast.error("Please enter a test recipient number");
+      return;
+    }
     try {
-      await sendTestOutbound(testRecipient.trim() || undefined);
+      await sendTestOutbound(recipient);
       toast.success("Test outbound sent");
     } catch (invokeError) {
       toast.error(invokeError instanceof Error ? invokeError.message : "Outbound test failed");
