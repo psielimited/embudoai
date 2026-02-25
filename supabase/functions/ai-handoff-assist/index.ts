@@ -55,14 +55,14 @@ function buildSummary(messages: Array<{ sender: string; content: string }>) {
   return `${focus} Context: ${previous}`.slice(0, 700);
 }
 
-async function isOrgMemberForConversation(userClient: ReturnType<typeof createClient>, conversationId: string) {
+async function isOrgMemberForConversation(userClient: any, conversationId: string) {
   const { data: conv, error: convErr } = await userClient
     .from("conversations")
     .select("id")
     .eq("id", conversationId)
     .maybeSingle();
   if (convErr) return false;
-  return !!conv?.id;
+  return !!(conv as any)?.id;
 }
 
 Deno.serve(async (req) => {
