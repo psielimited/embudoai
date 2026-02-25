@@ -248,7 +248,7 @@ export default function ContactDetail() {
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Created</span>
-              <span>{format(new Date(contact.created_at), "MMM d, yyyy HH:mm")}</span>
+              <span>{contact.created_at && !isNaN(new Date(contact.created_at).getTime()) ? format(new Date(contact.created_at), "MMM d, yyyy HH:mm") : "-"}</span>
             </div>
           </CardContent>
         </Card>
@@ -379,7 +379,7 @@ export default function ContactDetail() {
                       <div>
                         <p className="font-medium">{conversation.external_contact || "Unknown contact"}</p>
                         <p className="text-xs text-muted-foreground">
-                          Updated {format(new Date(conversation.updated_at), "MMM d, yyyy h:mm a")}
+                          Updated {conversation.updated_at && !isNaN(new Date(conversation.updated_at).getTime()) ? format(new Date(conversation.updated_at), "MMM d, yyyy h:mm a") : "-"}
                         </p>
                       </div>
                       <StatusBadge status={conversation.status} />
