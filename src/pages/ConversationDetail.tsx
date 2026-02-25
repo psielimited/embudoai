@@ -17,6 +17,7 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { callEdge } from "@/lib/edge";
@@ -84,6 +85,12 @@ export default function ConversationDetail() {
   const [sendingMessageId, setSendingMessageId] = useState<string | null>(null);
   const [manualReply, setManualReply] = useState("");
   const [sendingManualReply, setSendingManualReply] = useState(false);
+  const [simulatingInbound, setSimulatingInbound] = useState(false);
+  const [simulatedInboundContent, setSimulatedInboundContent] = useState(
+    "I will sue you if you do not refund me right now.",
+  );
+  const showDevTools =
+    import.meta.env.DEV || import.meta.env.VITE_FEATURE_FLAG_DEV_TOOLS === "true";
 
   const { data: merchant } = useMerchant(merchantId!);
   const { data: conversation, isLoading: convLoading } = useConversation(conversationId!);
@@ -299,6 +306,32 @@ export default function ConversationDetail() {
     }
   };
 
+  const handleSimulateInbound = async () => {
+    if (!conversation || !simulatedInboundContent.trim()) return;
+    setSimulatingInbound(true);
+    try {
+      await callEdge("ingest-message", {
+        merchant_id: conversation.merchant_id,
+        external_contact: conversation.external_contact,
+        content: simulatedInboundContent.trim(),
+        sender: "user",
+        channel: "whatsapp",
+        provider: "meta",
+      });
+      toast.success("Inbound message simulated");
+      queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
+      queryClient.invalidateQueries({ queryKey: ["conversation", conversationId] });
+      queryClient.invalidateQueries({ queryKey: ["conversation-handoff", conversationId] });
+      queryClient.invalidateQueries({ queryKey: ["conversation-suggestions", conversationId] });
+      queryClient.invalidateQueries({ queryKey: ["ai-agent-runs", conversationId] });
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to simulate inbound message");
+    } finally {
+      setSimulatingInbound(false);
+    }
+  };
+
   if (!conversation && !isLoading) {
     return (
       <EmptyState
@@ -509,6 +542,26 @@ export default function ConversationDetail() {
               </Button>
             </div>
           </div>
+
+          {showDevTools && conversation && (
+            <div className="mt-4 pt-4 border-t border-dashed border-border space-y-2">
+              <p className="text-sm font-medium">Dev: Simulate inbound message</p>
+              <Input
+                value={simulatedInboundContent}
+                onChange={(event) => setSimulatedInboundContent(event.target.value)}
+                placeholder="Inbound message text to simulate..."
+              />
+              <div className="flex justify-end">
+                <Button
+                  variant="secondary"
+                  onClick={() => void handleSimulateInbound()}
+                  disabled={simulatingInbound || simulatedInboundContent.trim().length === 0}
+                >
+                  {simulatingInbound ? "Simulating..." : "Simulate Inbound"}
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
       <div className="mt-6">
