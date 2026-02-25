@@ -174,7 +174,7 @@ Deno.serve(async (req) => {
               approved_count: counts.approved,
               pending_count: counts.pending,
               rejected_count: counts.rejected,
-              templates: templates.map((item) => ({
+              templates: templates.map((item: any) => ({
                 name: item?.name ?? null,
                 status: item?.status ?? null,
                 category: item?.category ?? null,
