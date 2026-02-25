@@ -738,12 +738,12 @@ export type Database = {
       }
       conversations: {
         Row: {
-          automation_mode: Database["public"]["Enums"]["automation_mode"]
           ai_enabled: boolean
           ai_last_error: string | null
           ai_last_generated_at: string | null
           ai_paused: boolean
           ai_status: string
+          automation_mode: Database["public"]["Enums"]["automation_mode"]
           contact_id: string | null
           created_at: string
           external_contact: string
@@ -773,12 +773,12 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          automation_mode?: Database["public"]["Enums"]["automation_mode"]
           ai_enabled?: boolean
           ai_last_error?: string | null
           ai_last_generated_at?: string | null
           ai_paused?: boolean
           ai_status?: string
+          automation_mode?: Database["public"]["Enums"]["automation_mode"]
           contact_id?: string | null
           created_at?: string
           external_contact: string
@@ -808,12 +808,12 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          automation_mode?: Database["public"]["Enums"]["automation_mode"]
           ai_enabled?: boolean
           ai_last_error?: string | null
           ai_last_generated_at?: string | null
           ai_paused?: boolean
           ai_status?: string
+          automation_mode?: Database["public"]["Enums"]["automation_mode"]
           contact_id?: string | null
           created_at?: string
           external_contact?: string
@@ -2296,7 +2296,13 @@ export type Database = {
     Enums: {
       app_role: "admin" | "manager" | "rep"
       automation_mode: "ai" | "human" | "hybrid"
-      lead_stage: "new" | "contacted" | "qualified" | "negotiating" | "won" | "lost"
+      lead_stage:
+        | "new"
+        | "contacted"
+        | "qualified"
+        | "negotiating"
+        | "won"
+        | "lost"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2426,7 +2432,14 @@ export const Constants = {
     Enums: {
       app_role: ["admin", "manager", "rep"],
       automation_mode: ["ai", "human", "hybrid"],
-      lead_stage: ["new", "contacted", "qualified", "negotiating", "won", "lost"],
+      lead_stage: [
+        "new",
+        "contacted",
+        "qualified",
+        "negotiating",
+        "won",
+        "lost",
+      ],
     },
   },
 } as const
