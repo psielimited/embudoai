@@ -530,6 +530,89 @@ export type Database = {
           },
         ]
       }
+      conversation_handoffs: {
+        Row: {
+          acknowledged_at: string | null
+          acknowledged_by_user_id: string | null
+          conversation_id: string
+          created_at: string
+          created_by_user_id: string | null
+          id: string
+          merchant_id: string
+          org_id: string
+          packet: Json
+          reason_code: string
+          reason_text: string | null
+          resolved_at: string | null
+          resolved_by_user_id: string | null
+          run_id: string | null
+          status: string
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          acknowledged_by_user_id?: string | null
+          conversation_id: string
+          created_at?: string
+          created_by_user_id?: string | null
+          id?: string
+          merchant_id: string
+          org_id: string
+          packet?: Json
+          reason_code: string
+          reason_text?: string | null
+          resolved_at?: string | null
+          resolved_by_user_id?: string | null
+          run_id?: string | null
+          status?: string
+        }
+        Update: {
+          acknowledged_at?: string | null
+          acknowledged_by_user_id?: string | null
+          conversation_id?: string
+          created_at?: string
+          created_by_user_id?: string | null
+          id?: string
+          merchant_id?: string
+          org_id?: string
+          packet?: Json
+          reason_code?: string
+          reason_text?: string | null
+          resolved_at?: string | null
+          resolved_by_user_id?: string | null
+          run_id?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_handoffs_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_handoffs_merchant_id_fkey"
+            columns: ["merchant_id"]
+            isOneToOne: false
+            referencedRelation: "merchants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_handoffs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_handoffs_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversation_sla_policies: {
         Row: {
           created_at: string
@@ -578,6 +661,81 @@ export type Database = {
           },
         ]
       }
+      conversation_suggestions: {
+        Row: {
+          conversation_id: string
+          created_at: string
+          handoff_id: string | null
+          id: string
+          language: string | null
+          merchant_id: string
+          org_id: string
+          source_run_id: string | null
+          status: string
+          suggestions: Json
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string
+          handoff_id?: string | null
+          id?: string
+          language?: string | null
+          merchant_id: string
+          org_id: string
+          source_run_id?: string | null
+          status?: string
+          suggestions?: Json
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string
+          handoff_id?: string | null
+          id?: string
+          language?: string | null
+          merchant_id?: string
+          org_id?: string
+          source_run_id?: string | null
+          status?: string
+          suggestions?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_suggestions_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_suggestions_handoff_id_fkey"
+            columns: ["handoff_id"]
+            isOneToOne: false
+            referencedRelation: "conversation_handoffs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_suggestions_merchant_id_fkey"
+            columns: ["merchant_id"]
+            isOneToOne: false
+            referencedRelation: "merchants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_suggestions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_suggestions_source_run_id_fkey"
+            columns: ["source_run_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversations: {
         Row: {
           ai_enabled: boolean
@@ -588,6 +746,9 @@ export type Database = {
           contact_id: string | null
           created_at: string
           external_contact: string
+          handoff_active: boolean
+          handoff_reason_code: string | null
+          handoff_reason_text: string | null
           id: string
           intent: string | null
           language: string
@@ -619,6 +780,9 @@ export type Database = {
           contact_id?: string | null
           created_at?: string
           external_contact: string
+          handoff_active?: boolean
+          handoff_reason_code?: string | null
+          handoff_reason_text?: string | null
           id?: string
           intent?: string | null
           language?: string
@@ -650,6 +814,9 @@ export type Database = {
           contact_id?: string | null
           created_at?: string
           external_contact?: string
+          handoff_active?: boolean
+          handoff_reason_code?: string | null
+          handoff_reason_text?: string | null
           id?: string
           intent?: string | null
           language?: string

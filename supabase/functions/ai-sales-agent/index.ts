@@ -314,6 +314,8 @@ Deno.serve(async (req) => {
       return json({ ok: true, run_id: runId, conversation_id: conv.id, handoff_id: handoffId }, 200);
     }
 
+    const opportunityId = conv.opportunity_id;
+    const ownerUserId = conv.owner_user_id;
     const actions = Array.isArray(parsed?.actions) ? parsed.actions : [];
     const shouldSend = parsed?.reply?.should_send !== false;
     const defaultText = String(parsed?.reply?.text ?? "").trim();
