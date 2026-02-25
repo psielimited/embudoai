@@ -9,6 +9,7 @@ type ConversationListRow = Pick<
   Conversation,
   | "id"
   | "merchant_id"
+  | "automation_mode"
   | "external_contact"
   | "status"
   | "updated_at"
@@ -181,7 +182,7 @@ export function useGlobalConversations(filters?: GlobalConversationFilters) {
     queryFn: async () => {
       let query = supabase
         .from("conversations")
-        .select("id,merchant_id,external_contact,status,updated_at,owner_user_id,last_inbound_at,last_human_outbound_at,merchants(name)")
+        .select("id,merchant_id,automation_mode,external_contact,status,updated_at,owner_user_id,last_inbound_at,last_human_outbound_at,merchants(name)")
         .eq("org_id", orgId!)
         .order("updated_at", { ascending: false });
 
@@ -207,6 +208,7 @@ export function useGlobalConversations(filters?: GlobalConversationFilters) {
       >).map((row) => ({
         id: row.id,
         merchant_id: row.merchant_id,
+        automation_mode: row.automation_mode as Conversation["automation_mode"],
         external_contact: row.external_contact,
         status: row.status as Conversation["status"],
         updated_at: row.updated_at,

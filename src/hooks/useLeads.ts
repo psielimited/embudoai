@@ -3,12 +3,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { callEdge } from "@/lib/edge";
 
 export function useLeads(filters?: { status?: string; owner?: string }) {
-  return useQuery({
+  const query = useQuery({
     queryKey: ["leads", filters],
     queryFn: async () => {
       let q = supabase
         .from("leads")
-        .select("id,full_name,status,source,emails,created_at")
+        .select("id,full_name,status,lead_stage,source,emails,created_at")
         .order("created_at", { ascending: false });
       if (filters?.status) q = q.eq("status", filters.status);
       if (filters?.owner) q = q.eq("owner_user_id", filters.owner);
@@ -17,6 +17,23 @@ export function useLeads(filters?: { status?: string; owner?: string }) {
       return data ?? [];
     },
   });
+
+  const leads = query.data ?? [];
+  const total = leads.length;
+  const qualified = leads.filter((lead: any) => lead.lead_stage === "qualified").length;
+  const negotiating = leads.filter((lead: any) => lead.lead_stage === "negotiating").length;
+  const won = leads.filter((lead: any) => lead.lead_stage === "won").length;
+  const lost = leads.filter((lead: any) => lead.lead_stage === "lost").length;
+
+  return {
+    ...query,
+    leads,
+    total,
+    qualified,
+    negotiating,
+    won,
+    lost,
+  };
 }
 
 export function useLead(id?: string) {

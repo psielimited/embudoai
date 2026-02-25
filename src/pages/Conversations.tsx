@@ -51,6 +51,26 @@ export default function Conversations() {
     return labels;
   }, [owners]);
 
+  const modeBadge = (mode: ConversationListRow["automation_mode"]) => {
+    const styles: Record<ConversationListRow["automation_mode"], string> = {
+      ai: "bg-green-500/10 text-green-700 border-green-500/20",
+      human: "bg-yellow-500/10 text-yellow-700 border-yellow-500/20",
+      hybrid: "bg-purple-500/10 text-purple-700 border-purple-500/20",
+    };
+
+    const labels: Record<ConversationListRow["automation_mode"], string> = {
+      ai: "AI",
+      human: "Human",
+      hybrid: "Hybrid",
+    };
+
+    return (
+      <Badge variant="outline" className={styles[mode]}>
+        {labels[mode]}
+      </Badge>
+    );
+  };
+
   const columns = [
     {
       key: "external_contact",
@@ -86,6 +106,11 @@ export default function Conversations() {
       key: "status",
       header: "Status",
       render: (conversation: ConversationListRow) => <StatusBadge status={conversation.status} />,
+    },
+    {
+      key: "automation_mode",
+      header: "Mode",
+      render: (conversation: ConversationListRow) => modeBadge(conversation.automation_mode),
     },
     {
       key: "updated_at",

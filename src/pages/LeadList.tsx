@@ -7,7 +7,7 @@ import { DataTable } from "@/components/DataTable";
 import { EmptyState } from "@/components/EmptyState";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useLeads, useCreateLead } from "@/hooks/useLeads";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -28,7 +28,7 @@ type CreateLeadForm = z.infer<typeof createLeadSchema>;
 
 export default function LeadList() {
   const navigate = useNavigate();
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [stageFilter, setStageFilter] = useState<string>("all");
   const [createOpen, setCreateOpen] = useState(false);
 
   const {
@@ -47,10 +47,13 @@ export default function LeadList() {
     },
   });
 
-  const { data: leads = [], isLoading } = useLeads(
-    statusFilter !== "all" ? { status: statusFilter } : undefined,
-  );
+  const { leads = [], total, qualified, negotiating, won, lost, isLoading } = useLeads();
   const createLead = useCreateLead();
+
+  const filteredLeads = leads.filter((lead: any) => {
+    if (stageFilter === "all") return true;
+    return lead.lead_stage === stageFilter;
+  });
 
   const handleCreate = async (form: CreateLeadForm) => {
     try {
@@ -89,6 +92,22 @@ export default function LeadList() {
     );
   };
 
+  const stageBadge = (stage: string) => {
+    const colors: Record<string, string> = {
+      new: "bg-muted text-muted-foreground border-border",
+      contacted: "bg-blue-500/10 text-blue-600 border-blue-500/20",
+      qualified: "bg-purple-500/10 text-purple-600 border-purple-500/20",
+      negotiating: "bg-yellow-500/10 text-yellow-700 border-yellow-500/20",
+      won: "bg-green-500/10 text-green-700 border-green-500/20",
+      lost: "bg-red-500/10 text-red-700 border-red-500/20",
+    };
+    return (
+      <Badge variant="outline" className={colors[stage] || colors.new}>
+        {stage}
+      </Badge>
+    );
+  };
+
   const columns = [
     {
       key: "full_name",
@@ -101,6 +120,11 @@ export default function LeadList() {
       render: (l: any) => statusBadge(l.status),
     },
     {
+      key: "lead_stage",
+      header: "Stage",
+      render: (l: any) => stageBadge(l.lead_stage || "new"),
+    },
+    {
       key: "source",
       header: "Source",
       render: (l: any) => <span className="text-muted-foreground capitalize">{l.source}</span>,
@@ -110,7 +134,7 @@ export default function LeadList() {
       header: "Email",
       render: (l: any) => {
         const emails: string[] = Array.isArray(l.emails) ? l.emails : [];
-        return <span className="text-muted-foreground">{emails[0] || "—"}</span>;
+        return <span className="text-muted-foreground">{emails[0] || "-"}</span>;
       },
     },
     {
@@ -129,28 +153,80 @@ export default function LeadList() {
         description="Manage your lead pipeline"
         breadcrumbs={[{ label: "Leads" }]}
         actions={
-          <div className="flex items-center gap-2">
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[140px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="open">Open</SelectItem>
-                <SelectItem value="converted">Converted</SelectItem>
-                <SelectItem value="disqualified">Disqualified</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button onClick={() => setCreateOpen(true)}>
-              <UserPlus className="h-4 w-4 mr-1" /> New Lead
-            </Button>
-          </div>
+          <Button onClick={() => setCreateOpen(true)}>
+            <UserPlus className="h-4 w-4 mr-1" /> New Lead
+          </Button>
         }
       />
 
+      <div className="grid gap-4 md:grid-cols-5 mb-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Leads</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{total}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Qualified</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{qualified}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Negotiating</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{negotiating}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Won</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{won}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Lost</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{lost}</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="flex flex-wrap gap-2 mb-4">
+        {[
+          { value: "all", label: "All" },
+          { value: "new", label: "New" },
+          { value: "contacted", label: "Contacted" },
+          { value: "qualified", label: "Qualified" },
+          { value: "negotiating", label: "Negotiating" },
+          { value: "won", label: "Won" },
+          { value: "lost", label: "Lost" },
+        ].map((filter) => (
+          <Button
+            key={filter.value}
+            type="button"
+            variant={stageFilter === filter.value ? "default" : "outline"}
+            size="sm"
+            onClick={() => setStageFilter(filter.value)}
+          >
+            {filter.label}
+          </Button>
+        ))}
+      </div>
+
       <DataTable
         columns={columns}
-        data={leads}
+        data={filteredLeads}
         onRowClick={(lead) => navigate(`/leads/${lead.id}`)}
         isLoading={isLoading}
         emptyState={

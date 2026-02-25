@@ -14,6 +14,7 @@ export interface Conversation {
   id: string;
   merchant_id: string;
   org_id: string;
+  automation_mode: 'ai' | 'human' | 'hybrid';
   external_contact: string;
   language: string;
   intent: string | null;
@@ -41,6 +42,18 @@ export interface Conversation {
   last_outbound_at: string | null;
   last_human_outbound_at: string | null;
   last_ai_outbound_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Lead {
+  id: string;
+  org_id: string;
+  full_name: string;
+  status: string;
+  lead_stage: 'new' | 'contacted' | 'qualified' | 'negotiating' | 'won' | 'lost';
+  source: string;
+  emails: unknown;
   created_at: string;
   updated_at: string;
 }
