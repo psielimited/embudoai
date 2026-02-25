@@ -10,6 +10,33 @@ export interface Merchant {
   whatsapp_access_token: string | null;
 }
 
+export interface MerchantSettings {
+  merchant_id: string;
+  org_id: string;
+  whatsapp_phone_number_id: string | null;
+  whatsapp_waba_id: string | null;
+  whatsapp_business_id: string | null;
+  creds_status: 'unknown' | 'pass' | 'fail';
+  creds_error: string | null;
+  creds_checked_at: string | null;
+  webhook_verify_status: 'unknown' | 'pass' | 'fail';
+  webhook_verify_error: string | null;
+  webhook_verified_at: string | null;
+  last_inbound_at: string | null;
+  last_inbound_event_id: string | null;
+  inbound_status: 'unknown' | 'pass' | 'fail';
+  inbound_error: string | null;
+  last_outbound_success_at: string | null;
+  last_outbound_failure_at: string | null;
+  last_outbound_error: string | null;
+  outbound_status: 'unknown' | 'pass' | 'fail';
+  templates_summary: Record<string, unknown> | null;
+  templates_checked_at: string | null;
+  last_validation_payload: Record<string, unknown> | null;
+  step_progress: Record<string, unknown> | null;
+  updated_at: string;
+}
+
 export interface Conversation {
   id: string;
   merchant_id: string;

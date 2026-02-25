@@ -228,6 +228,8 @@ Deno.serve(async (req) => {
         .upsert({
           org_id: merchant.org_id,
           merchant_id: merchant.id,
+          whatsapp_phone_number_id: resolvedPhoneId,
+          whatsapp_waba_id: resolvedWabaId,
           embedded_signup_status: "failed",
           embedded_signup_error: "Could not resolve WhatsApp business assets from embedded signup response",
           embedded_signup_payload: discoveryPayload,
@@ -267,6 +269,12 @@ Deno.serve(async (req) => {
         meta_phone_number_id: resolvedPhoneId,
         meta_access_token_last4: tokenLast4,
         meta_token_updated_at: now,
+        whatsapp_phone_number_id: resolvedPhoneId,
+        whatsapp_waba_id: resolvedWabaId,
+        creds_status: "unknown",
+        webhook_verify_status: "unknown",
+        inbound_status: "unknown",
+        outbound_status: "unknown",
         embedded_signup_status: "connected",
         embedded_signup_error: null,
         embedded_signup_payload: {

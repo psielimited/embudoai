@@ -1139,6 +1139,9 @@ export type Database = {
       }
       merchant_settings: {
         Row: {
+          creds_checked_at: string | null
+          creds_error: string | null
+          creds_status: string
           connectivity_inbound_last_checked_at: string | null
           connectivity_inbound_marker: string | null
           connectivity_inbound_ok: boolean
@@ -1153,6 +1156,12 @@ export type Database = {
           embedded_signup_payload: Json
           embedded_signup_status: string | null
           id: string
+          inbound_error: string | null
+          inbound_status: string
+          last_inbound_at: string | null
+          last_inbound_event_id: string | null
+          last_outbound_error: string | null
+          last_validation_payload: Json | null
           last_outbound_failure_at: string | null
           last_outbound_success_at: string | null
           last_webhook_received_at: string | null
@@ -1163,20 +1172,33 @@ export type Database = {
           meta_waba_id: string | null
           onboarding_step: number
           org_id: string
+          outbound_status: string
+          step_progress: Json | null
           template_approval_state: string | null
           template_approved_count: number
           template_pending_count: number
           template_rejected_count: number
+          templates_checked_at: string | null
+          templates_summary: Json | null
           token_expires_at: string | null
           token_last_checked_at: string | null
           token_valid: boolean
           updated_at: string
           validation_results: Json
+          webhook_verify_error: string | null
+          webhook_verify_status: string
+          webhook_verified_at: string | null
+          whatsapp_business_id: string | null
+          whatsapp_phone_number_id: string | null
+          whatsapp_waba_id: string | null
           webhook_challenge_error: string | null
           webhook_challenge_last_checked_at: string | null
           webhook_challenge_valid: boolean
         }
         Insert: {
+          creds_checked_at?: string | null
+          creds_error?: string | null
+          creds_status?: string
           connectivity_inbound_last_checked_at?: string | null
           connectivity_inbound_marker?: string | null
           connectivity_inbound_ok?: boolean
@@ -1191,6 +1213,12 @@ export type Database = {
           embedded_signup_payload?: Json
           embedded_signup_status?: string | null
           id?: string
+          inbound_error?: string | null
+          inbound_status?: string
+          last_inbound_at?: string | null
+          last_inbound_event_id?: string | null
+          last_outbound_error?: string | null
+          last_validation_payload?: Json | null
           last_outbound_failure_at?: string | null
           last_outbound_success_at?: string | null
           last_webhook_received_at?: string | null
@@ -1201,20 +1229,33 @@ export type Database = {
           meta_waba_id?: string | null
           onboarding_step?: number
           org_id: string
+          outbound_status?: string
+          step_progress?: Json | null
           template_approval_state?: string | null
           template_approved_count?: number
           template_pending_count?: number
           template_rejected_count?: number
+          templates_checked_at?: string | null
+          templates_summary?: Json | null
           token_expires_at?: string | null
           token_last_checked_at?: string | null
           token_valid?: boolean
           updated_at?: string
           validation_results?: Json
+          webhook_verify_error?: string | null
+          webhook_verify_status?: string
+          webhook_verified_at?: string | null
+          whatsapp_business_id?: string | null
+          whatsapp_phone_number_id?: string | null
+          whatsapp_waba_id?: string | null
           webhook_challenge_error?: string | null
           webhook_challenge_last_checked_at?: string | null
           webhook_challenge_valid?: boolean
         }
         Update: {
+          creds_checked_at?: string | null
+          creds_error?: string | null
+          creds_status?: string
           connectivity_inbound_last_checked_at?: string | null
           connectivity_inbound_marker?: string | null
           connectivity_inbound_ok?: boolean
@@ -1229,6 +1270,12 @@ export type Database = {
           embedded_signup_payload?: Json
           embedded_signup_status?: string | null
           id?: string
+          inbound_error?: string | null
+          inbound_status?: string
+          last_inbound_at?: string | null
+          last_inbound_event_id?: string | null
+          last_outbound_error?: string | null
+          last_validation_payload?: Json | null
           last_outbound_failure_at?: string | null
           last_outbound_success_at?: string | null
           last_webhook_received_at?: string | null
@@ -1239,15 +1286,25 @@ export type Database = {
           meta_waba_id?: string | null
           onboarding_step?: number
           org_id?: string
+          outbound_status?: string
+          step_progress?: Json | null
           template_approval_state?: string | null
           template_approved_count?: number
           template_pending_count?: number
           template_rejected_count?: number
+          templates_checked_at?: string | null
+          templates_summary?: Json | null
           token_expires_at?: string | null
           token_last_checked_at?: string | null
           token_valid?: boolean
           updated_at?: string
           validation_results?: Json
+          webhook_verify_error?: string | null
+          webhook_verify_status?: string
+          webhook_verified_at?: string | null
+          whatsapp_business_id?: string | null
+          whatsapp_phone_number_id?: string | null
+          whatsapp_waba_id?: string | null
           webhook_challenge_error?: string | null
           webhook_challenge_last_checked_at?: string | null
           webhook_challenge_valid?: boolean

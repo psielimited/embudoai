@@ -79,6 +79,12 @@ Deno.serve(async (req) => {
 
     const now = new Date().toISOString();
 
+    const { data: currentSettings } = await supabase
+      .from("merchant_settings")
+      .select("meta_waba_id, whatsapp_waba_id, whatsapp_business_id, whatsapp_phone_number_id, templates_summary, onboarding_step")
+      .eq("merchant_id", merchant.id)
+      .maybeSingle();
+
     const { data: subscription } = await supabase
       .from("org_subscriptions")
       .select("status, messages_used, trial_ends_at, subscription_plans(message_limit)")
@@ -141,15 +147,19 @@ Deno.serve(async (req) => {
         template_pending_count: 0,
         template_rejected_count: 0,
       };
+      let templatesSummary: Record<string, unknown> | null = null;
 
       if (tokenValid) {
         // Keep template stats best-effort; do not fail credential validation if WABA id is unavailable.
         const wabaId = (tokenCheck.body?.whatsapp_business_account?.id
-          ?? tokenCheck.body?.whatsapp_business_account_id) as string | undefined;
+          ?? tokenCheck.body?.whatsapp_business_account_id
+          ?? currentSettings?.whatsapp_waba_id
+          ?? currentSettings?.meta_waba_id) as string | undefined;
         if (wabaId) {
-          const tplRes = await graphGet(`${wabaId}/message_templates?fields=name,status&limit=100`, merchant.whatsapp_access_token);
+          const tplRes = await graphGet(`${wabaId}/message_templates?fields=name,status,category,language&limit=100`, merchant.whatsapp_access_token);
           if (tplRes.ok) {
-            const counts = parseTemplateCounts(Array.isArray(tplRes.body?.data) ? tplRes.body.data : []);
+            const templates = Array.isArray(tplRes.body?.data) ? tplRes.body.data : [];
+            const counts = parseTemplateCounts(templates);
             templateInfo.template_approved_count = counts.approved;
             templateInfo.template_pending_count = counts.pending;
             templateInfo.template_rejected_count = counts.rejected;
@@ -160,22 +170,56 @@ Deno.serve(async (req) => {
                 : counts.approved > 0
                   ? "approved"
                   : "unknown";
+            templatesSummary = {
+              approved_count: counts.approved,
+              pending_count: counts.pending,
+              rejected_count: counts.rejected,
+              templates: templates.map((item) => ({
+                name: item?.name ?? null,
+                status: item?.status ?? null,
+                category: item?.category ?? null,
+                language: item?.language ?? null,
+              })),
+            };
           }
         }
       }
 
       const settings = await upsertSettings({
         onboarding_step: tokenValid && webhookValid ? 2 : 1,
+        whatsapp_phone_number_id: merchant.whatsapp_phone_number_id,
+        whatsapp_waba_id: currentSettings?.whatsapp_waba_id ?? currentSettings?.meta_waba_id ?? null,
+        whatsapp_business_id: currentSettings?.whatsapp_business_id ?? null,
         credentials_valid: tokenValid,
         credentials_last_checked_at: now,
         credentials_error: tokenError,
+        creds_status: tokenValid ? "pass" : "fail",
+        creds_error: tokenError,
+        creds_checked_at: now,
         webhook_challenge_valid: webhookValid,
         webhook_challenge_last_checked_at: now,
         webhook_challenge_error: webhookValid ? null : webhookBody?.slice(0, 500),
+        webhook_verify_status: webhookValid ? "pass" : "fail",
+        webhook_verify_error: webhookValid ? null : webhookBody?.slice(0, 500),
+        webhook_verified_at: webhookValid ? now : null,
         token_valid: tokenValid,
         token_last_checked_at: now,
         token_expires_at: null,
+        templates_summary: templatesSummary ?? currentSettings?.templates_summary ?? null,
+        templates_checked_at: now,
         ...templateInfo,
+        last_validation_payload: {
+          action: "validate_credentials",
+          checked_at: now,
+          token_valid: tokenValid,
+          webhook_challenge_valid: webhookValid,
+          error: tokenError ?? (webhookValid ? null : webhookBody?.slice(0, 500)),
+        },
+        step_progress: {
+          onboarding_step: tokenValid && webhookValid ? 2 : 1,
+          credentials_valid: tokenValid,
+          webhook_verified: webhookValid,
+        },
         validation_results: {
           validate_credentials: {
             token_valid: tokenValid,
@@ -260,8 +304,21 @@ Deno.serve(async (req) => {
         connectivity_outbound_ok: isOk,
         connectivity_outbound_last_checked_at: now,
         connectivity_outbound_error: error,
+        outbound_status: isOk ? "pass" : "fail",
+        last_outbound_error: error,
         last_outbound_success_at: isOk ? now : undefined,
         last_outbound_failure_at: isOk ? undefined : now,
+        last_validation_payload: {
+          action: "connectivity_test_outbound",
+          checked_at: now,
+          ok: isOk,
+          error,
+          test_to: testTo,
+        },
+        step_progress: {
+          onboarding_step: 2,
+          outbound_ok: isOk,
+        },
         validation_results: {
           connectivity_test_outbound: {
             ok: isOk,
@@ -280,7 +337,7 @@ Deno.serve(async (req) => {
 
       let query = supabase
         .from("channel_events")
-        .select("provider_event_id, created_at, external_contact")
+        .select("id, provider_event_id, created_at, external_contact")
         .eq("merchant_id", merchant.id)
         .eq("channel", "whatsapp")
         .eq("event_type", "message")
@@ -302,7 +359,23 @@ Deno.serve(async (req) => {
         connectivity_inbound_ok: inboundOk,
         connectivity_inbound_last_checked_at: now,
         connectivity_inbound_marker: latest?.provider_event_id ?? null,
+        last_inbound_at: latest?.created_at ?? null,
+        last_inbound_event_id: latest?.id ?? null,
+        inbound_status: inboundOk ? "pass" : "fail",
+        inbound_error: inboundOk ? null : "No inbound marker found yet",
         last_webhook_received_at: latest?.created_at ?? null,
+        last_validation_payload: {
+          action: "check_inbound_marker",
+          checked_at: now,
+          ok: inboundOk,
+          marker: latest?.provider_event_id ?? null,
+          channel_event_id: latest?.id ?? null,
+          external_contact: latest?.external_contact ?? null,
+        },
+        step_progress: {
+          onboarding_step: inboundOk ? 3 : 2,
+          inbound_ok: inboundOk,
+        },
         validation_results: {
           check_inbound_marker: {
             ok: inboundOk,
@@ -325,6 +398,16 @@ Deno.serve(async (req) => {
       .limit(1)
       .maybeSingle();
 
+    const { data: latestInbound } = await supabase
+      .from("channel_events")
+      .select("id, created_at")
+      .eq("merchant_id", merchant.id)
+      .eq("channel", "whatsapp")
+      .eq("event_type", "message")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
     const { data: convRows } = await supabase
       .from("conversations")
       .select("id")
@@ -339,31 +422,93 @@ Deno.serve(async (req) => {
     if (conversationIds.length > 0) {
       const { data: outboundRows } = await supabase
         .from("messages")
-        .select("created_at, send_status")
+        .select("created_at, send_status, send_error")
         .in("conversation_id", conversationIds)
         .eq("direction", "outbound")
         .in("send_status", ["sent", "failed"])
         .order("created_at", { ascending: false })
         .limit(300);
 
+      let latestOutboundError: string | null = null;
+
       for (const row of outboundRows ?? []) {
         if (!lastOutboundSuccessAt && row.send_status === "sent") lastOutboundSuccessAt = row.created_at;
-        if (!lastOutboundFailureAt && row.send_status === "failed") lastOutboundFailureAt = row.created_at;
+        if (!lastOutboundFailureAt && row.send_status === "failed") {
+          lastOutboundFailureAt = row.created_at;
+          latestOutboundError = row.send_error ?? null;
+        }
         if (lastOutboundSuccessAt && lastOutboundFailureAt) break;
       }
+
+      const outboundStatus = lastOutboundFailureAt
+        ? (!lastOutboundSuccessAt || new Date(lastOutboundFailureAt).getTime() >= new Date(lastOutboundSuccessAt).getTime() ? "fail" : "pass")
+        : (lastOutboundSuccessAt ? "pass" : "unknown");
+      const inboundStatus = latestInbound ? "pass" : "unknown";
+
+      const refreshedSettings = await upsertSettings({
+        last_webhook_received_at: latestWebhook?.created_at ?? null,
+        last_inbound_at: latestInbound?.created_at ?? null,
+        last_inbound_event_id: latestInbound?.id ?? null,
+        inbound_status: inboundStatus,
+        inbound_error: latestInbound ? null : "No inbound marker found yet",
+        last_outbound_success_at: lastOutboundSuccessAt,
+        last_outbound_failure_at: lastOutboundFailureAt,
+        last_outbound_error: latestOutboundError,
+        outbound_status: outboundStatus,
+        last_validation_payload: {
+          action: "refresh_status",
+          checked_at: now,
+          inbound_status: inboundStatus,
+          outbound_status: outboundStatus,
+        },
+        step_progress: {
+          onboarding_step: currentSettings?.onboarding_step ?? 1,
+          inbound_ok: !!latestInbound,
+          outbound_status: outboundStatus,
+        },
+      });
+
+      return json({
+        ok: true,
+        last_webhook_received_at: latestWebhook?.created_at ?? null,
+        last_inbound_at: latestInbound?.created_at ?? null,
+        last_outbound_success_at: lastOutboundSuccessAt,
+        last_outbound_failure_at: lastOutboundFailureAt,
+        outbound_status: outboundStatus,
+        inbound_status: inboundStatus,
+        settings: refreshedSettings,
+      });
     }
+
+    const outboundStatus = "unknown";
+    const inboundStatus = latestInbound ? "pass" : "unknown";
 
     const settings = await upsertSettings({
       last_webhook_received_at: latestWebhook?.created_at ?? null,
-      last_outbound_success_at: lastOutboundSuccessAt,
-      last_outbound_failure_at: lastOutboundFailureAt,
+      last_inbound_at: latestInbound?.created_at ?? null,
+      last_inbound_event_id: latestInbound?.id ?? null,
+      inbound_status: inboundStatus,
+      inbound_error: latestInbound ? null : "No inbound marker found yet",
+      outbound_status: outboundStatus,
+      last_validation_payload: {
+        action: "refresh_status",
+        checked_at: now,
+        inbound_status: inboundStatus,
+        outbound_status: outboundStatus,
+      },
+      step_progress: {
+        onboarding_step: currentSettings?.onboarding_step ?? 1,
+        inbound_ok: !!latestInbound,
+        outbound_status: outboundStatus,
+      },
     });
 
     return json({
       ok: true,
       last_webhook_received_at: latestWebhook?.created_at ?? null,
-      last_outbound_success_at: lastOutboundSuccessAt,
-      last_outbound_failure_at: lastOutboundFailureAt,
+      last_inbound_at: latestInbound?.created_at ?? null,
+      outbound_status: outboundStatus,
+      inbound_status: inboundStatus,
       settings,
     });
   } catch (error) {

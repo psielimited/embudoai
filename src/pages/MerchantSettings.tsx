@@ -1,857 +1,476 @@
-import { useEffect, useMemo, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { callEdge } from "@/lib/edge";
+﻿import { useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import {
-  AlertTriangle,
-  CheckCircle2,
-  CircleDot,
-  Loader2,
-  Link2,
-  Store,
-  XCircle,
-} from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { AlertTriangle, CheckCircle2, Loader2, RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
-import { PlanSummary } from "@/components/PlanSummary";
-import { OnboardingProgress } from "@/components/OnboardingProgress";
-import {
-  useDeactivateMerchant,
-  useMerchant,
-  useMerchantCredentials,
-  useMerchantSettings,
-  useRunMerchantOnboardingCheck,
-  useUpdateMerchant,
-  useUpdateMerchantCredentials,
-} from "@/hooks/useMerchants";
-import { useActiveOrg, useOrgPlanStatus } from "@/hooks/useOrg";
-import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { useMerchant } from "@/hooks/useMerchants";
+import { useMerchantSettings } from "@/hooks/useMerchantSettings";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { toast } from "sonner";
-import { META_CONFIG_ID, getMetaRedirectUri } from "@/lib/meta/constants";
-import { loadFacebookSdk } from "@/lib/meta/fbSdk";
 
-function StepStatus({ ok, label }: { ok: boolean | null; label: string }) {
-  if (ok === true) {
-    return (
-      <Badge className="gap-1" variant="secondary">
-        <CheckCircle2 className="h-3.5 w-3.5" /> {label}
-      </Badge>
-    );
-  }
+type HealthStatus = "pass" | "fail" | "unknown";
 
-  if (ok === false) {
-    return (
-      <Badge className="gap-1" variant="destructive">
-        <XCircle className="h-3.5 w-3.5" /> {label}
-      </Badge>
-    );
-  }
-
-  return (
-    <Badge className="gap-1" variant="outline">
-      <CircleDot className="h-3.5 w-3.5" /> {label}
-    </Badge>
-  );
+function normalizeStatus(status: string | null | undefined, legacyPass?: boolean, hasError?: boolean): HealthStatus {
+  if (status === "pass" || status === "fail" || status === "unknown") return status;
+  if (legacyPass === true) return "pass";
+  if (legacyPass === false || hasError) return "fail";
+  return "unknown";
 }
 
-function formatTs(ts: string | null | undefined) {
-  if (!ts) return "Not available";
-  return `${new Date(ts).toLocaleString()} (${formatDistanceToNow(new Date(ts), { addSuffix: true })})`;
+function statusBadge(status: HealthStatus, passLabel = "Pass", failLabel = "Fail", unknownLabel = "Unknown") {
+  if (status === "pass") {
+    return <Badge className="bg-green-500/10 text-green-700 border-green-500/20">{passLabel}</Badge>;
+  }
+  if (status === "fail") {
+    return <Badge className="bg-red-500/10 text-red-700 border-red-500/20">{failLabel}</Badge>;
+  }
+  return <Badge variant="outline">{unknownLabel}</Badge>;
+}
+
+function maskTail(value: string | null | undefined, tail = 6) {
+  if (!value) return "Not available";
+  const suffix = value.slice(-tail);
+  return `******${suffix}`;
+}
+
+function formatTs(value: string | null | undefined) {
+  if (!value) return "None";
+  const d = new Date(value);
+  return `${d.toLocaleString()} (${formatDistanceToNow(d, { addSuffix: true })})`;
+}
+
+function toRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+function toNumber(value: unknown, fallback = 0) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return fallback;
+}
+
+type TemplateRow = {
+  name: string;
+  status: string;
+  category: string;
+  language: string;
+};
+
+function toTemplateRows(value: unknown): TemplateRow[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((row) => toRecord(row))
+    .filter((row): row is Record<string, unknown> => row !== null)
+    .map((row) => ({
+      name: String(row.name ?? "-"),
+      status: String(row.status ?? "-"),
+      category: String(row.category ?? "-"),
+      language: String(row.language ?? row.language_code ?? "-"),
+    }));
 }
 
 export default function MerchantSettings() {
-  const { merchantId, wizardStep } = useParams<{ merchantId: string; wizardStep?: string }>();
-  const location = useLocation();
   const navigate = useNavigate();
-  const { signOut } = useAuth();
-  const { data: merchant, isLoading } = useMerchant(merchantId!);
-  const { data: merchantSettings } = useMerchantSettings(merchantId);
-  const { data: credentials } = useMerchantCredentials(merchantId);
-  const { data: activeOrgId } = useActiveOrg();
-  const { subscription, trialDaysRemaining, overQuota, trialExpired } = useOrgPlanStatus(activeOrgId ?? undefined);
-  const updateMerchant = useUpdateMerchant();
-  const updateCredentials = useUpdateMerchantCredentials();
-  const deactivateMerchant = useDeactivateMerchant();
-  const onboardingCheck = useRunMerchantOnboardingCheck();
-  const queryClient = useQueryClient();
-
-  const [phoneNumberId, setPhoneNumberId] = useState("");
-  const [appSecret, setAppSecret] = useState("");
-  const [verifyToken, setVerifyToken] = useState("");
-  const [accessToken, setAccessToken] = useState("");
-  const [testRecipient, setTestRecipient] = useState("");
-  const [initialized, setInitialized] = useState(false);
-  const [embeddedStatus, setEmbeddedStatus] = useState<"idle" | "connecting" | "exchanging" | "provisioning" | "validating" | "done" | "error">("idle");
-
-  useEffect(() => {
-    if (!credentials || initialized) return;
-    setPhoneNumberId(credentials.whatsapp_phone_number_id ?? "");
-    setVerifyToken(credentials.whatsapp_verify_token ?? "");
-    setAccessToken(credentials.whatsapp_access_token ?? "");
-    setAppSecret(credentials.whatsapp_app_secret ?? "");
-    setInitialized(true);
-  }, [credentials, initialized]);
-
-  const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/whatsapp-webhook`;
-
-  const onboardingStep = useMemo(() => {
-    if (merchantSettings?.onboarding_step) return merchantSettings.onboarding_step;
-    return 1;
-  }, [merchantSettings]);
-  const onboardingWizardBase = `/onboarding/whatsapp/${merchantId}`;
-  const wizardSteps = ["credentials", "connectivity", "status"] as const;
+  const location = useLocation();
+  const { merchantId } = useParams<{ merchantId: string }>();
   const isWizardRoute = location.pathname.startsWith("/onboarding/whatsapp/");
-  const activeWizardStep = wizardSteps.includes((wizardStep as typeof wizardSteps[number]) ?? "credentials")
-    ? (wizardStep as typeof wizardSteps[number])
-    : "credentials";
-  const activeWizardStepNumber = wizardSteps.indexOf(activeWizardStep) + 1;
+  const [testRecipient, setTestRecipient] = useState("");
 
-  const plan = subscription?.subscription_plans;
-  const merchantLimit = (() => {
-    const normalized = (plan?.name ?? "").toLowerCase();
-    if (normalized.includes("free")) return 1;
-    if (normalized.includes("starter")) return 1;
-    if (normalized.includes("growth")) return 2;
-    if (normalized.includes("pro")) return null;
-    return 1;
-  })();
-  const isSingleMerchantTier = merchantLimit === 1;
-  const canRunConnectivityTest = !!subscription
-    && (subscription.status === "active" || subscription.status === "trial")
-    && !trialExpired
-    && !overQuota;
-  const showUpgradeCta = Boolean(
-    (plan && (!plan.ai_enabled || !plan.automation_enabled))
-      || overQuota
-      || (subscription?.status === "trial" && (trialDaysRemaining ?? 99) < 3),
+  const { data: merchant, isLoading: isLoadingMerchant } = useMerchant(merchantId!);
+  const {
+    settings,
+    isLoading: isLoadingSettings,
+    error,
+    refreshStatus,
+    validateCredentials,
+    sendTestOutbound,
+    checkInboundMarker,
+    isRefreshing,
+    isValidating,
+    isSendingTest,
+    isCheckingInbound,
+  } = useMerchantSettings(merchantId);
+
+  const credsStatus = normalizeStatus(
+    settings?.creds_status,
+    settings?.credentials_valid,
+    Boolean(settings?.creds_error ?? settings?.credentials_error),
   );
-  const merchantWizardComplete = Boolean(
-    merchantSettings
-      && merchantSettings.onboarding_step >= 3
-      && merchantSettings.credentials_valid
-      && merchantSettings.webhook_challenge_valid
-      && merchantSettings.connectivity_outbound_ok
-      && merchantSettings.connectivity_inbound_ok,
+  const webhookStatus = normalizeStatus(
+    settings?.webhook_verify_status,
+    settings?.webhook_challenge_valid,
+    Boolean(settings?.webhook_verify_error ?? settings?.webhook_challenge_error),
   );
-  const isMerchantSetupPending = !merchantWizardComplete;
-  const canAdvanceFromCredentials = Boolean(merchantSettings?.credentials_valid && merchantSettings?.webhook_challenge_valid);
-  const canAdvanceFromConnectivity = Boolean(merchantSettings?.connectivity_outbound_ok && merchantSettings?.connectivity_inbound_ok);
-  const showStep1Section = !isWizardRoute || activeWizardStep === "credentials";
-  const showStep2Section = !isWizardRoute || activeWizardStep === "connectivity";
-  const showStep3Section = !isWizardRoute || activeWizardStep === "status";
-  const onboardingFlowStep = isWizardRoute ? activeWizardStepNumber + 1 : 4;
-  const isAdmin = credentials !== null;
-  const manualSetupEnabled = import.meta.env.VITE_FEATURE_FLAG_MANUAL_WA_SETUP === "true";
-  const canEditCredentials = manualSetupEnabled && (isAdmin || isMerchantSetupPending);
+  const inboundStatus = normalizeStatus(
+    settings?.inbound_status,
+    settings?.connectivity_inbound_ok,
+    Boolean(settings?.inbound_error),
+  );
+  const outboundStatus = normalizeStatus(
+    settings?.outbound_status,
+    settings?.connectivity_outbound_ok,
+    Boolean(settings?.last_outbound_error ?? settings?.connectivity_outbound_error),
+  );
 
-  const handleSaveCredentials = async () => {
-    if (!merchantId) return;
-
-    await updateCredentials.mutateAsync({
-      merchantId,
-      credentials: {
-        whatsapp_phone_number_id: phoneNumberId || null,
-        whatsapp_verify_token: verifyToken || null,
-        whatsapp_app_secret: appSecret || null,
-        whatsapp_access_token: accessToken || null,
-      },
-    });
-  };
-
-  const handleValidateCredentials = async () => {
-    if (!merchantId) return;
-    const missing: string[] = [];
-    if (!phoneNumberId.trim()) missing.push("phone_number_id");
-    if (!accessToken.trim()) missing.push("access_token");
-    if (!verifyToken.trim()) missing.push("verify_token");
-    if (missing.length > 0) {
-      toast.error(`Please enter: ${missing.join(", ")}`);
-      return;
+  const overallStatus: "connected" | "action_required" | "unknown" = useMemo(() => {
+    if (credsStatus === "pass" && webhookStatus === "pass" && outboundStatus !== "fail") {
+      return "connected";
     }
+    if (credsStatus === "fail" || webhookStatus === "fail" || outboundStatus === "fail") {
+      return "action_required";
+    }
+    return "unknown";
+  }, [credsStatus, webhookStatus, outboundStatus]);
 
+  const overallBadge = useMemo(() => {
+    if (overallStatus === "connected") {
+      return <Badge className="bg-green-500/10 text-green-700 border-green-500/20">Connected</Badge>;
+    }
+    if (overallStatus === "action_required") {
+      return <Badge className="bg-red-500/10 text-red-700 border-red-500/20">Action required</Badge>;
+    }
+    return <Badge variant="outline">Unknown</Badge>;
+  }, [overallStatus]);
+
+  const lastUpdatedText = settings?.updated_at
+    ? formatDistanceToNow(new Date(settings.updated_at), { addSuffix: true })
+    : "not available";
+
+  const templateSummary = toRecord(settings?.templates_summary);
+  const templateRows = toTemplateRows(templateSummary?.templates);
+  const approvedCount = toNumber(templateSummary?.approved_count, settings?.template_approved_count ?? 0);
+  const pendingCount = toNumber(templateSummary?.pending_count, settings?.template_pending_count ?? 0);
+  const rejectedCount = toNumber(templateSummary?.rejected_count, settings?.template_rejected_count ?? 0);
+
+  const merchantSetupComplete = Boolean(
+    (credsStatus === "pass" || settings?.credentials_valid)
+    && (webhookStatus === "pass" || settings?.webhook_challenge_valid)
+    && (outboundStatus === "pass" || settings?.connectivity_outbound_ok)
+    && (inboundStatus === "pass" || settings?.connectivity_inbound_ok),
+  );
+
+  const onRefresh = async () => {
     try {
-      await handleSaveCredentials();
-      const { data: persisted, error: persistedError } = await supabase
-        .from("merchants")
-        .select("whatsapp_phone_number_id,whatsapp_access_token,whatsapp_verify_token")
-        .eq("id", merchantId)
-        .maybeSingle();
-      if (persistedError) throw persistedError;
-      if (!persisted?.whatsapp_phone_number_id || !persisted?.whatsapp_access_token || !persisted?.whatsapp_verify_token) {
-        toast.error("Credentials could not be persisted yet. Please save again or check permissions.");
-        return;
-      }
-      const result = await onboardingCheck.mutateAsync({
-        merchantId,
-        action: "validate_credentials",
-      });
-
-      if (result.ok) {
-        toast.success("Credentials validated and webhook challenge simulation passed");
-      } else {
-        toast.error(String(result.error ?? "Credential validation failed"));
-      }
-    } catch (error) {
-      console.error(error);
-      toast.error("Failed to validate credentials");
+      await refreshStatus();
+      toast.success("Health status refreshed");
+    } catch (invokeError) {
+      toast.error(invokeError instanceof Error ? invokeError.message : "Failed to refresh status");
     }
   };
 
-  const handleConnectivityOutbound = async () => {
-    if (!merchantId) return;
-
+  const onValidateAccount = async () => {
     try {
-      const result = await onboardingCheck.mutateAsync({
-        merchantId,
-        action: "connectivity_test_outbound",
-        payload: { test_to: testRecipient.trim() },
-      });
-
-      if (result.ok) {
-        toast.success("Test outbound message sent");
-      } else {
-        toast.error(String(result.error ?? "Outbound test failed"));
-      }
-    } catch (error) {
-      console.error(error);
-      toast.error("Failed outbound connectivity test");
+      await validateCredentials();
+      toast.success("Account validation completed");
+    } catch (invokeError) {
+      toast.error(invokeError instanceof Error ? invokeError.message : "Validation failed");
     }
   };
 
-  const handleConnectivityInbound = async () => {
-    if (!merchantId) return;
-
+  const onSendTest = async () => {
     try {
-      const result = await onboardingCheck.mutateAsync({
-        merchantId,
-        action: "check_inbound_marker",
-        payload: { expected_from: testRecipient.trim() || undefined },
-      });
-
-      if (result.ok) {
-        toast.success("Inbound webhook marker detected");
-      } else {
-        toast.error("No inbound marker found yet");
-      }
-    } catch (error) {
-      console.error(error);
-      toast.error("Failed inbound marker check");
+      await sendTestOutbound(testRecipient.trim() || undefined);
+      toast.success("Test outbound sent");
+    } catch (invokeError) {
+      toast.error(invokeError instanceof Error ? invokeError.message : "Outbound test failed");
     }
   };
 
-  const handleRefreshStatus = async () => {
-    if (!merchantId) return;
-
+  const onCheckInbound = async () => {
     try {
-      await onboardingCheck.mutateAsync({ merchantId, action: "refresh_status" });
-      toast.success("Status refreshed");
-    } catch (error) {
-      console.error(error);
-      toast.error("Failed to refresh status");
+      await checkInboundMarker(testRecipient.trim() || undefined);
+      toast.success("Inbound marker check completed");
+    } catch (invokeError) {
+      toast.error(invokeError instanceof Error ? invokeError.message : "Inbound marker check failed");
     }
   };
 
-  const handleStatusToggle = async (checked: boolean) => {
-    if (!merchantId) return;
-    const nextStatus = checked ? "active" : "inactive";
-    try {
-      await updateMerchant.mutateAsync({
-        id: merchantId,
-        updates: { status: nextStatus },
-      });
-      toast.success(`Merchant marked ${nextStatus}`);
-    } catch (error) {
-      console.error(error);
-      toast.error("Failed to update merchant status");
-    }
-  };
-
-  const handleDeactivate = async () => {
-    if (!merchantId) return;
-    try {
-      await deactivateMerchant.mutateAsync(merchantId);
-      toast.success("Merchant archived");
-    } catch (error) {
-      console.error(error);
-      toast.error("Failed to archive merchant");
-    }
-  };
-
-  const handleSignOut = async () => {
-    const { error } = await signOut();
-    if (error) {
-      toast.error(error.message || "Failed to sign out");
-      return;
-    }
-    navigate("/login", { replace: true });
-  };
-
-  const goToWizardStep = (target: (typeof wizardSteps)[number]) => {
-    navigate(`${onboardingWizardBase}/${target}`);
-  };
-
-  const embeddedStepLabel: Record<typeof embeddedStatus, string> = {
-    idle: "Ready to connect",
-    connecting: "Opening Meta Embedded Signup",
-    exchanging: "Exchanging authorization code",
-    provisioning: "Provisioning WhatsApp assets",
-    validating: "Running validation checks",
-    done: "Connection complete",
-    error: "Connection failed",
-  };
-
-  const handleEmbeddedSignupConnect = async () => {
-    if (!merchantId) return;
-    try {
-      setEmbeddedStatus("connecting");
-      await loadFacebookSdk();
-      const redirectUri = getMetaRedirectUri();
-
-      const init = await callEdge<{ ok: boolean; state: string }>("meta-embedded-signup-init", {
-        merchant_id: merchantId,
-        redirect_uri: redirectUri,
-      });
-      const state = init.state;
-      sessionStorage.setItem(`embudex.meta.state.${merchantId}`, state);
-
-      let hintedWabaId: string | null = null;
-      let hintedPhoneId: string | null = null;
-      const listener = (event: MessageEvent) => {
-        if (!event.origin.includes("facebook.com")) return;
-        try {
-          const raw = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
-          const payload = raw?.data ?? raw;
-          const waba = payload?.waba_id ?? payload?.business_account_id ?? payload?.whatsapp_business_account_id;
-          const phone = payload?.phone_number_id ?? payload?.phone_id;
-          if (typeof waba === "string") hintedWabaId = waba;
-          if (typeof phone === "string") hintedPhoneId = phone;
-        } catch {
-          // ignore
-        }
-      };
-      window.addEventListener("message", listener);
-
-      const authResponse = await new Promise<{ code?: string }>((resolve) => {
-        window.FB?.login(
-          (response) => resolve({ code: response?.authResponse?.code }),
-          {
-            config_id: META_CONFIG_ID,
-            response_type: "code",
-            override_default_response_type: true,
-            redirect_uri: redirectUri,
-            extras: {
-              setup: {},
-            },
-          },
-        );
-      });
-      window.removeEventListener("message", listener);
-
-      const code = authResponse.code;
-      if (!code) {
-        setEmbeddedStatus("error");
-        toast.error("Meta signup was cancelled or did not return an authorization code.");
-        return;
-      }
-
-      setEmbeddedStatus("exchanging");
-      const result = await callEdge<{ ok: boolean; status?: Record<string, string> }>(
-        "meta-embedded-signup-exchange",
-        {
-          merchant_id: merchantId,
-          code,
-          state,
-          redirect_uri: redirectUri,
-          waba_id: hintedWabaId,
-          phone_number_id: hintedPhoneId,
-        },
-      );
-
-      setEmbeddedStatus("validating");
-      queryClient.invalidateQueries({ queryKey: ["merchant-settings", merchantId] });
-      queryClient.invalidateQueries({ queryKey: ["merchant", merchantId] });
-      queryClient.invalidateQueries({ queryKey: ["merchant-credentials", merchantId] });
-
-      if (result.ok) {
-        setEmbeddedStatus("done");
-        toast.success("WhatsApp connected successfully.");
-      } else {
-        setEmbeddedStatus("error");
-        toast.error("Connection failed.");
-      }
-    } catch (error) {
-      console.error(error);
-      setEmbeddedStatus("error");
-      toast.error(error instanceof Error ? error.message : "Failed to connect WhatsApp");
-    }
-  };
-
-  if (isLoading) {
+  if (isLoadingMerchant || isLoadingSettings) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="h-6 w-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   return (
-    <>
-      <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 lg:px-8 space-y-6">
-        <PageHeader
-          title={`${merchant?.name ?? "Merchant"} Settings`}
-          description={isMerchantSetupPending ? "Complete the WhatsApp onboarding wizard to unlock dashboard access." : undefined}
-          breadcrumbs={isWizardRoute ? [
-            { label: "Onboarding", href: "/onboarding/organization" },
-            { label: "WhatsApp Setup" },
-          ] : [
-            { label: "Merchants", href: "/merchants" },
-            { label: merchant?.name ?? "...", href: `/merchants/${merchantId}/conversations` },
-            { label: "Settings" },
-          ]}
-          actions={(
-            <Button variant="outline" onClick={() => void handleSignOut()}>
-              Log out
+    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8 space-y-6">
+      <PageHeader
+        title="WhatsApp"
+        description={`Last updated ${lastUpdatedText}`}
+        breadcrumbs={isWizardRoute ? [{ label: "Onboarding" }, { label: "WhatsApp" }] : [{ label: "Merchants", href: "/merchants" }, { label: merchant?.name ?? "Merchant", href: `/merchants/${merchantId}/conversations` }, { label: "WhatsApp" }]}
+        actions={
+          <div className="flex items-center gap-2">
+            {overallBadge}
+            <Button variant="outline" onClick={() => void onRefresh()} disabled={isRefreshing}>
+              {isRefreshing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+              Refresh
             </Button>
-          )}
-        />
+          </div>
+        }
+      />
 
-        {merchant?.status === "inactive" && !isMerchantSetupPending && (
-          <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Inactive merchant</AlertTitle>
-            <AlertDescription>
-              This merchant is archived. Conversations and workflows should be treated as read-only until reactivated.
-            </AlertDescription>
-          </Alert>
-        )}
+      {error && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Unable to load WhatsApp health snapshot</AlertTitle>
+          <AlertDescription>{error instanceof Error ? error.message : "Unexpected error"}</AlertDescription>
+        </Alert>
+      )}
 
-        {merchantWizardComplete && (
-          <Alert>
-            <CheckCircle2 className="h-4 w-4 text-green-600" />
-            <AlertTitle>WhatsApp onboarding complete</AlertTitle>
-            <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <span>
-                All setup steps passed. You can now proceed to the dashboard and use features available in your plan.
-              </span>
-              <span className="flex gap-2">
-                <Button size="sm" onClick={() => navigate("/dashboard")}>
-                  Go to Dashboard
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => navigate("/merchants")}>
-                  Merchants
-                </Button>
-              </span>
-            </AlertDescription>
-          </Alert>
-        )}
+      {merchantSetupComplete && isWizardRoute && (
+        <Alert>
+          <CheckCircle2 className="h-4 w-4 text-green-600" />
+          <AlertTitle>Setup completed</AlertTitle>
+          <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+            <span>All checks passed. You can proceed to the dashboard.</span>
+            <Button size="sm" onClick={() => navigate("/dashboard")}>Open Dashboard</Button>
+          </AlertDescription>
+        </Alert>
+      )}
 
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-base font-semibold">Account</h2>
+          <p className="text-sm text-muted-foreground">Connection identity and credential health.</p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Phone Number ID</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm font-mono">{maskTail(settings?.whatsapp_phone_number_id ?? settings?.meta_phone_number_id)}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">WABA ID</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm font-mono">{maskTail(settings?.whatsapp_waba_id ?? settings?.meta_waba_id)}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Business ID</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm font-mono">{maskTail(settings?.whatsapp_business_id)}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Credentials</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {statusBadge(credsStatus)}
+              <p className="text-xs text-muted-foreground">{formatTs(settings?.creds_checked_at ?? settings?.credentials_last_checked_at)}</p>
+              {(settings?.creds_error ?? settings?.credentials_error) && (
+                <p className="text-xs text-destructive line-clamp-3">{settings?.creds_error ?? settings?.credentials_error}</p>
+              )}
+              <Button variant="outline" size="sm" onClick={() => void onValidateAccount()} disabled={isValidating}>
+                {isValidating ? <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" /> : null}
+                Validate account
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+
+      <Separator />
+
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-base font-semibold">Webhook</h2>
+          <p className="text-sm text-muted-foreground">Verification and inbound delivery health.</p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Webhook Verified</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {statusBadge(webhookStatus)}
+              <p className="text-xs text-muted-foreground">{formatTs(settings?.webhook_verified_at ?? settings?.webhook_challenge_last_checked_at)}</p>
+              {(settings?.webhook_verify_error ?? settings?.webhook_challenge_error) && (
+                <p className="text-xs text-destructive line-clamp-3">{settings?.webhook_verify_error ?? settings?.webhook_challenge_error}</p>
+              )}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Inbound Activity</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {statusBadge(inboundStatus, "Inbound OK", "Inbound issue", "No inbound yet")}
+              <p className="text-xs text-muted-foreground">{formatTs(settings?.last_inbound_at ?? settings?.last_webhook_received_at)}</p>
+              {settings?.inbound_error && (
+                <p className="text-xs text-destructive line-clamp-3">{settings.inbound_error}</p>
+              )}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Inbound Marker</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs font-mono break-all">{settings?.last_inbound_event_id ?? "Not available"}</p>
+            </CardContent>
+          </Card>
+        </div>
+        <Accordion type="single" collapsible>
+          <AccordionItem value="advanced-webhook">
+            <AccordionTrigger>Advanced</AccordionTrigger>
+            <AccordionContent>
+              <div className="space-y-2 text-xs text-muted-foreground">
+                <p>Inbound marker id: {settings?.last_inbound_event_id ?? "Not available"}</p>
+                <p>Legacy inbound marker: {settings?.connectivity_inbound_marker ?? "Not available"}</p>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+      </section>
+
+      <Separator />
+
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-base font-semibold">Connectivity</h2>
+          <p className="text-sm text-muted-foreground">Outbound delivery checks and inbound marker verification.</p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Last Outbound Success</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm">{formatTs(settings?.last_outbound_success_at)}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Last Outbound Failure</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <p className="text-sm">{formatTs(settings?.last_outbound_failure_at)}</p>
+              {(settings?.last_outbound_error ?? settings?.connectivity_outbound_error) && (
+                <p className="text-xs text-destructive line-clamp-3">{settings?.last_outbound_error ?? settings?.connectivity_outbound_error}</p>
+              )}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Outbound Status</CardTitle>
+            </CardHeader>
+            <CardContent>{statusBadge(outboundStatus, "Healthy", "Failing", "Unknown")}</CardContent>
+          </Card>
+        </div>
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Store className="h-5 w-5" />
-              WhatsApp Merchant Onboarding Wizard
-            </CardTitle>
-            <CardDescription>
-              Guided setup to validate credentials, test connectivity, and monitor operational status.
-            </CardDescription>
+            <CardTitle className="text-sm">Run Checks</CardTitle>
+            <CardDescription>Use your test recipient in E.164 format (example: 18095551234).</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
-            <OnboardingProgress
-              activeStep={onboardingFlowStep}
-              stepLabels={["Organization", "WhatsApp Credentials", "Connectivity Test", "Status Review"]}
-              helperText={`Technical step: ${onboardingStep}/3`}
-            />
+          <CardContent className="space-y-3">
+            <div className="grid gap-2 sm:max-w-sm">
+              <Label htmlFor="testRecipient">Test recipient</Label>
+              <Input
+                id="testRecipient"
+                value={testRecipient}
+                onChange={(event) => setTestRecipient(event.target.value)}
+                placeholder="18095551234"
+              />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={() => void onSendTest()} disabled={isSendingTest}>
+                {isSendingTest ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                Send test message
+              </Button>
+              <Button variant="outline" onClick={() => void onCheckInbound()} disabled={isCheckingInbound}>
+                {isCheckingInbound ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                Check inbound marker
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </section>
 
-            {!isWizardRoute && <Separator />}
+      <Separator />
 
-            {showStep1Section && (
-            <section className="space-y-4">
-              <h3 className="text-sm font-semibold">Step 1 - Connect WhatsApp (Embedded Signup)</h3>
-              <div className="rounded-md border border-border bg-muted/30 p-3 text-sm space-y-1">
-                <p className="font-medium text-foreground">Connect from Meta in one click</p>
-                <p className="text-muted-foreground">
-                  This flow uses Meta Embedded Signup with your platform configuration and stores credentials server-side.
-                </p>
-                <p className="text-muted-foreground">
-                  No copy/paste of access token, app secret, or phone number ID is required.
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Webhook URL</Label>
-                <div className="flex items-center gap-2">
-                  <Input readOnly value={webhookUrl} className="font-mono text-xs" />
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      navigator.clipboard.writeText(webhookUrl);
-                      toast.success("Copied to clipboard");
-                    }}
-                  >
-                    Copy
-                  </Button>
-                </div>
-              </div>
-
-              <div className="rounded-md border border-border p-3 space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-medium">Connection status</p>
-                  <Badge variant={embeddedStatus === "error" ? "destructive" : embeddedStatus === "done" ? "secondary" : "outline"}>
-                    {embeddedStepLabel[embeddedStatus]}
-                  </Badge>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    onClick={() => void handleEmbeddedSignupConnect()}
-                    disabled={embeddedStatus === "connecting" || embeddedStatus === "exchanging" || onboardingCheck.isPending}
-                  >
-                    {embeddedStatus === "connecting" || embeddedStatus === "exchanging" ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                      <Link2 className="h-4 w-4 mr-2" />
-                    )}
-                    Connect WhatsApp
-                  </Button>
-                </div>
-                <div className="grid grid-cols-1 gap-2 text-xs text-muted-foreground sm:grid-cols-2">
-                  <p>WABA ID: {(merchantSettings as any)?.meta_waba_id ?? "Not connected"}</p>
-                  <p>Phone Number ID: {(merchantSettings as any)?.meta_phone_number_id ?? merchant?.whatsapp_phone_number_id ?? "Not connected"}</p>
-                </div>
-              </div>
-
-              {manualSetupEnabled && (
-                <Alert>
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertTitle>Manual setup fallback enabled</AlertTitle>
-                  <AlertDescription>
-                    This is an admin-only escape hatch. Embedded Signup remains the default path.
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              {canEditCredentials && (
-                <details className="rounded-md border border-border p-3">
-                  <summary className="cursor-pointer text-sm font-medium">Manual credential override</summary>
-                  <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="phoneNumberId">phone_number_id</Label>
-                      <Input
-                        id="phoneNumberId"
-                        value={phoneNumberId}
-                        onChange={(event) => setPhoneNumberId(event.target.value)}
-                        placeholder="e.g. 123456789012345"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="verifyToken">verify_token</Label>
-                      <Input
-                        id="verifyToken"
-                        value={verifyToken}
-                        onChange={(event) => setVerifyToken(event.target.value)}
-                        placeholder="Webhook verify token"
-                      />
-                    </div>
-                    <div className="space-y-2 md:col-span-2">
-                      <Label htmlFor="accessToken">access_token</Label>
-                      <Input
-                        id="accessToken"
-                        value={accessToken}
-                        onChange={(event) => setAccessToken(event.target.value)}
-                        placeholder="Meta access token"
-                      />
-                    </div>
-                    <div className="md:col-span-2">
-                      <Button
-                        onClick={() => void handleValidateCredentials()}
-                        disabled={updateCredentials.isPending || onboardingCheck.isPending}
-                      >
-                        {onboardingCheck.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-                        Save and Validate Manual Credentials
-                      </Button>
-                    </div>
-                  </div>
-                </details>
-              )}
-
-              <div className="flex flex-wrap items-center gap-2">
-                <StepStatus ok={merchantSettings?.credentials_valid ?? null} label="Access token validation" />
-                <StepStatus ok={merchantSettings?.webhook_challenge_valid ?? null} label="Webhook challenge simulation" />
-              </div>
-
-              {(merchantSettings?.credentials_error || merchantSettings?.webhook_challenge_error) && (
-                <Alert variant="destructive">
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertTitle>Validation issues</AlertTitle>
-                  <AlertDescription>
-                    {merchantSettings.credentials_error ?? merchantSettings.webhook_challenge_error}
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              <div className="flex items-center gap-2">
-                {isWizardRoute && (
-                  <Button
-                    variant="outline"
-                    onClick={() => goToWizardStep("connectivity")}
-                    disabled={!canAdvanceFromCredentials}
-                  >
-                    Continue to Step 2
-                  </Button>
-                )}
-              </div>
-            </section>
-            )}
-
-            {!isWizardRoute && <Separator />}
-
-            {showStep2Section && (
-            <section className="space-y-4">
-              <h3 className="text-sm font-semibold">Step 2 - Connectivity Test</h3>
-              <div className="rounded-md border border-border bg-muted/30 p-3 text-sm space-y-1">
-                <p className="font-medium text-foreground">Testing tips</p>
-                <p className="text-muted-foreground">Use a WhatsApp number that can receive test messages from your current Meta/WABA setup.</p>
-                <p className="text-muted-foreground">Send in E.164 format, for example: `18095551234`.</p>
-                <p className="text-muted-foreground">After sending outbound test, reply from that number and run inbound marker check.</p>
-              </div>
-
-              <div className="rounded-md border border-border bg-muted/30 p-3 text-sm">
-                <p className="font-medium">Usage Panel</p>
-                <p className="text-muted-foreground">
-                  {subscription?.messages_used ?? 0} / {plan?.message_limit ?? 0} messages used this cycle
-                  {subscription?.status === "trial" && trialDaysRemaining !== null
-                    ? ` - Trial ends in ${Math.max(0, trialDaysRemaining)} day(s)`
-                    : ""}
-                </p>
-              </div>
-
-              {!canRunConnectivityTest && (
-                <Alert variant="destructive">
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertTitle>Connectivity test blocked by plan</AlertTitle>
-                  <AlertDescription>
-                    {overQuota
-                      ? `Usage limit reached (${subscription?.messages_used ?? 0}/${plan?.message_limit ?? 0}). Upgrade to continue testing outbound sends.`
-                      : trialExpired
-                        ? "Trial expired. Upgrade plan to continue outbound testing."
-                        : "Subscription must be active or trial to run connectivity tests."}
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              <div className="space-y-2">
-                <Label htmlFor="testRecipient">Test recipient phone (E.164)</Label>
-                <Input
-                  id="testRecipient"
-                  value={testRecipient}
-                  onChange={(event) => setTestRecipient(event.target.value)}
-                  placeholder="e.g. 18095551234"
-                />
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <StepStatus ok={merchantSettings?.connectivity_outbound_ok ?? null} label="Outbound test" />
-                <StepStatus ok={merchantSettings?.connectivity_inbound_ok ?? null} label="Inbound webhook marker" />
-              </div>
-
-              {merchantSettings?.connectivity_outbound_error && (
-                <p className="text-xs text-destructive">Last outbound test error: {merchantSettings.connectivity_outbound_error}</p>
-              )}
-
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => void handleConnectivityOutbound()}
-                  disabled={onboardingCheck.isPending || !testRecipient.trim() || !canRunConnectivityTest}
-                >
-                  Trigger Test Outbound
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => void handleConnectivityInbound()}
-                  disabled={onboardingCheck.isPending}
-                >
-                  Check Inbound Marker
-                </Button>
-                {isWizardRoute && (
-                  <>
-                    <Button variant="ghost" onClick={() => goToWizardStep("credentials")}>
-                      Back to Step 1
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => goToWizardStep("status")}
-                      disabled={!canAdvanceFromConnectivity}
-                    >
-                      Continue to Step 3
-                    </Button>
-                  </>
-                )}
-              </div>
-            </section>
-            )}
-
-            <Separator />
-
-            {showStep3Section && (
-            <section className="space-y-4">
-              <div className="flex items-center justify-between gap-3">
-                <h3 className="text-sm font-semibold">Step 3 - Status Panel</h3>
-                <Button variant="outline" size="sm" onClick={() => void handleRefreshStatus()} disabled={onboardingCheck.isPending}>
-                  Refresh Status
-                </Button>
-              </div>
-
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div>
-                  <p className="text-xs text-muted-foreground">Last webhook received</p>
-                  <p className="text-sm">{formatTs(merchantSettings?.last_webhook_received_at)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Last outbound success</p>
-                  <p className="text-sm">{formatTs(merchantSettings?.last_outbound_success_at)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Last outbound failure</p>
-                  <p className="text-sm">{formatTs(merchantSettings?.last_outbound_failure_at)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Token expiration</p>
-                  <p className="text-sm">{merchantSettings?.token_expires_at ? formatTs(merchantSettings.token_expires_at) : "Unknown"}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Template approval state</p>
-                  <p className="text-sm capitalize">{merchantSettings?.template_approval_state ?? "Unknown"}</p>
-                  <p className="text-xs text-muted-foreground">
-                    Approved: {merchantSettings?.template_approved_count ?? 0}, Pending: {merchantSettings?.template_pending_count ?? 0}, Rejected: {merchantSettings?.template_rejected_count ?? 0}
-                  </p>
-                </div>
-              </div>
-
-              {isWizardRoute && (
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button variant="ghost" onClick={() => goToWizardStep("connectivity")}>
-                    Back to Step 2
-                  </Button>
-                  <Button onClick={() => navigate("/dashboard")} disabled={!merchantWizardComplete}>
-                    Finish and open dashboard
-                  </Button>
-                </div>
-              )}
-            </section>
-            )}
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-base font-semibold">Templates</h2>
+          <p className="text-sm text-muted-foreground">Approval summary and template inventory.</p>
+        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Summary</CardTitle>
+            <CardDescription>Last checked: {formatTs(settings?.templates_checked_at ?? settings?.token_last_checked_at)}</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-md border p-3">
+              <p className="text-xs text-muted-foreground">Approved</p>
+              <p className="text-xl font-semibold">{approvedCount}</p>
+            </div>
+            <div className="rounded-md border p-3">
+              <p className="text-xs text-muted-foreground">Pending</p>
+              <p className="text-xl font-semibold">{pendingCount}</p>
+            </div>
+            <div className="rounded-md border p-3">
+              <p className="text-xs text-muted-foreground">Rejected</p>
+              <p className="text-xl font-semibold">{rejectedCount}</p>
+            </div>
           </CardContent>
         </Card>
 
-        <PlanSummary
-          subscription={subscription}
-          trialDaysRemaining={trialDaysRemaining}
-          overQuota={overQuota}
-          showUpgradeCta={showUpgradeCta}
-        />
-
-        {!isMerchantSetupPending && (
+        {templateRows.length > 0 && (
           <Card>
             <CardHeader>
-              <CardTitle>Merchant Status</CardTitle>
-              <CardDescription>
-                {isSingleMerchantTier
-                  ? "Single-merchant tier: keep one active merchant at a time."
-                  : "Toggle whether this merchant is active in your workspace."}
-              </CardDescription>
+              <CardTitle className="text-sm">Template list</CardTitle>
             </CardHeader>
-            <CardContent className="flex items-center justify-between gap-4">
-              <div>
-                <p className="font-medium">{merchant?.status === "active" ? "Active" : "Inactive"}</p>
-                <p className="text-sm text-muted-foreground">
-                  {isSingleMerchantTier
-                    ? "Archiving this merchant frees your single active merchant slot."
-                    : "Inactive merchants are hidden by default from merchant list views."}
-                </p>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-left text-muted-foreground">
+                      <th className="py-2 pr-4 font-medium">Name</th>
+                      <th className="py-2 pr-4 font-medium">Status</th>
+                      <th className="py-2 pr-4 font-medium">Category</th>
+                      <th className="py-2 font-medium">Language</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {templateRows.map((row, index) => (
+                      <tr key={`${row.name}-${index}`} className="border-b last:border-0">
+                        <td className="py-2 pr-4">{row.name}</td>
+                        <td className="py-2 pr-4">{row.status}</td>
+                        <td className="py-2 pr-4">{row.category}</td>
+                        <td className="py-2">{row.language}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-              <Switch
-                checked={merchant?.status === "active"}
-                onCheckedChange={handleStatusToggle}
-                disabled={updateMerchant.isPending || deactivateMerchant.isPending}
-              />
             </CardContent>
           </Card>
         )}
-
-        {!isMerchantSetupPending && (
-          <Card className="border-destructive/40">
-            <CardHeader>
-              <CardTitle className="text-destructive">Danger Zone</CardTitle>
-              <CardDescription>
-                {isSingleMerchantTier
-                  ? "Archive this merchant to free your single active slot. You can reactivate later."
-                  : "Archive this merchant. You can reactivate later from the status toggle."}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex items-center justify-between gap-4">
-              <p className="text-sm text-muted-foreground">
-                {isSingleMerchantTier
-                  ? "Archiving marks this merchant inactive and pauses activity until you reactivate it or activate another merchant."
-                  : "Archiving hides this merchant from default list views and marks it inactive."}
-              </p>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="destructive" disabled={merchant?.status === "inactive" || deactivateMerchant.isPending}>
-                    Archive Merchant
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Archive {merchant?.name}?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      {isSingleMerchantTier
-                        ? "This will archive the merchant and free your single active merchant slot until you reactivate or create another merchant."
-                        : "This will archive the merchant and remove it from active lists until reactivated."}
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                      onClick={() => void handleDeactivate()}
-                    >
-                      Confirm Archive
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </CardContent>
-          </Card>
-        )}
-
-        {!isMerchantSetupPending && (
-          <div>
-            <Button variant="outline" onClick={() => navigate(`/merchants/${merchantId}/conversations`)}>
-              Back to Conversations
-            </Button>
-          </div>
-        )}
-      </div>
-    </>
+      </section>
+    </div>
   );
 }
