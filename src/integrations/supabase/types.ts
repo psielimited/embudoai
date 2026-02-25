@@ -1267,9 +1267,6 @@ export type Database = {
       }
       merchant_settings: {
         Row: {
-          creds_checked_at: string | null
-          creds_error: string | null
-          creds_status: string
           connectivity_inbound_last_checked_at: string | null
           connectivity_inbound_marker: string | null
           connectivity_inbound_ok: boolean
@@ -1280,6 +1277,9 @@ export type Database = {
           credentials_error: string | null
           credentials_last_checked_at: string | null
           credentials_valid: boolean
+          creds_checked_at: string | null
+          creds_error: string | null
+          creds_status: string
           embedded_signup_error: string | null
           embedded_signup_payload: Json
           embedded_signup_status: string | null
@@ -1289,9 +1289,9 @@ export type Database = {
           last_inbound_at: string | null
           last_inbound_event_id: string | null
           last_outbound_error: string | null
-          last_validation_payload: Json | null
           last_outbound_failure_at: string | null
           last_outbound_success_at: string | null
+          last_validation_payload: Json | null
           last_webhook_received_at: string | null
           merchant_id: string
           meta_access_token_last4: string | null
@@ -1313,20 +1313,17 @@ export type Database = {
           token_valid: boolean
           updated_at: string
           validation_results: Json
-          webhook_verify_error: string | null
-          webhook_verify_status: string
-          webhook_verified_at: string | null
-          whatsapp_business_id: string | null
-          whatsapp_phone_number_id: string | null
-          whatsapp_waba_id: string | null
           webhook_challenge_error: string | null
           webhook_challenge_last_checked_at: string | null
           webhook_challenge_valid: boolean
+          webhook_verified_at: string | null
+          webhook_verify_error: string | null
+          webhook_verify_status: string
+          whatsapp_business_id: string | null
+          whatsapp_phone_number_id: string | null
+          whatsapp_waba_id: string | null
         }
         Insert: {
-          creds_checked_at?: string | null
-          creds_error?: string | null
-          creds_status?: string
           connectivity_inbound_last_checked_at?: string | null
           connectivity_inbound_marker?: string | null
           connectivity_inbound_ok?: boolean
@@ -1337,6 +1334,9 @@ export type Database = {
           credentials_error?: string | null
           credentials_last_checked_at?: string | null
           credentials_valid?: boolean
+          creds_checked_at?: string | null
+          creds_error?: string | null
+          creds_status?: string
           embedded_signup_error?: string | null
           embedded_signup_payload?: Json
           embedded_signup_status?: string | null
@@ -1346,9 +1346,9 @@ export type Database = {
           last_inbound_at?: string | null
           last_inbound_event_id?: string | null
           last_outbound_error?: string | null
-          last_validation_payload?: Json | null
           last_outbound_failure_at?: string | null
           last_outbound_success_at?: string | null
+          last_validation_payload?: Json | null
           last_webhook_received_at?: string | null
           merchant_id: string
           meta_access_token_last4?: string | null
@@ -1370,20 +1370,17 @@ export type Database = {
           token_valid?: boolean
           updated_at?: string
           validation_results?: Json
-          webhook_verify_error?: string | null
-          webhook_verify_status?: string
-          webhook_verified_at?: string | null
-          whatsapp_business_id?: string | null
-          whatsapp_phone_number_id?: string | null
-          whatsapp_waba_id?: string | null
           webhook_challenge_error?: string | null
           webhook_challenge_last_checked_at?: string | null
           webhook_challenge_valid?: boolean
+          webhook_verified_at?: string | null
+          webhook_verify_error?: string | null
+          webhook_verify_status?: string
+          whatsapp_business_id?: string | null
+          whatsapp_phone_number_id?: string | null
+          whatsapp_waba_id?: string | null
         }
         Update: {
-          creds_checked_at?: string | null
-          creds_error?: string | null
-          creds_status?: string
           connectivity_inbound_last_checked_at?: string | null
           connectivity_inbound_marker?: string | null
           connectivity_inbound_ok?: boolean
@@ -1394,6 +1391,9 @@ export type Database = {
           credentials_error?: string | null
           credentials_last_checked_at?: string | null
           credentials_valid?: boolean
+          creds_checked_at?: string | null
+          creds_error?: string | null
+          creds_status?: string
           embedded_signup_error?: string | null
           embedded_signup_payload?: Json
           embedded_signup_status?: string | null
@@ -1403,9 +1403,9 @@ export type Database = {
           last_inbound_at?: string | null
           last_inbound_event_id?: string | null
           last_outbound_error?: string | null
-          last_validation_payload?: Json | null
           last_outbound_failure_at?: string | null
           last_outbound_success_at?: string | null
+          last_validation_payload?: Json | null
           last_webhook_received_at?: string | null
           merchant_id?: string
           meta_access_token_last4?: string | null
@@ -1427,15 +1427,15 @@ export type Database = {
           token_valid?: boolean
           updated_at?: string
           validation_results?: Json
-          webhook_verify_error?: string | null
-          webhook_verify_status?: string
-          webhook_verified_at?: string | null
-          whatsapp_business_id?: string | null
-          whatsapp_phone_number_id?: string | null
-          whatsapp_waba_id?: string | null
           webhook_challenge_error?: string | null
           webhook_challenge_last_checked_at?: string | null
           webhook_challenge_valid?: boolean
+          webhook_verified_at?: string | null
+          webhook_verify_error?: string | null
+          webhook_verify_status?: string
+          whatsapp_business_id?: string | null
+          whatsapp_phone_number_id?: string | null
+          whatsapp_waba_id?: string | null
         }
         Relationships: [
           {
