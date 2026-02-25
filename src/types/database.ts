@@ -22,6 +22,9 @@ export interface Conversation {
   lead_score: number;
   lead_score_reason: Record<string, unknown>;
   status: 'open' | 'waiting_on_customer' | 'needs_handoff' | 'resolved' | 'closed';
+  handoff_active: boolean;
+  handoff_reason_code: string | null;
+  handoff_reason_text: string | null;
   contact_id: string | null;
   lead_id: string | null;
   opportunity_id: string | null;
@@ -112,5 +115,46 @@ export interface AiAgentAction {
   status: "pending" | "executed" | "failed" | "skipped";
   error: string | null;
   executed_at: string | null;
+  created_at: string;
+}
+
+export interface ConversationHandoff {
+  id: string;
+  org_id: string;
+  merchant_id: string;
+  conversation_id: string;
+  run_id: string | null;
+  created_by_user_id: string | null;
+  reason_code:
+    | "abuse"
+    | "legal_threat"
+    | "billing_dispute"
+    | "refund_dispute"
+    | "low_confidence"
+    | "policy_unknown"
+    | "ai_error"
+    | "merchant_pause"
+    | "manual_request"
+    | "other";
+  reason_text: string | null;
+  packet: Record<string, unknown>;
+  status: "open" | "acknowledged" | "resolved";
+  acknowledged_by_user_id: string | null;
+  acknowledged_at: string | null;
+  resolved_by_user_id: string | null;
+  resolved_at: string | null;
+  created_at: string;
+}
+
+export interface ConversationSuggestion {
+  id: string;
+  org_id: string;
+  merchant_id: string;
+  conversation_id: string;
+  handoff_id: string | null;
+  source_run_id: string | null;
+  status: "active" | "expired" | "used";
+  language: string | null;
+  suggestions: Record<string, unknown>;
   created_at: string;
 }

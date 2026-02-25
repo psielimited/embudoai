@@ -8,6 +8,7 @@ import { MessageBubble } from "@/components/MessageBubble";
 import { ConversationWorkflow } from "@/components/ConversationWorkflow";
 import { ConversationTimeline } from "@/components/ConversationTimeline";
 import { AgentRunPanel } from "@/components/AgentRunPanel";
+import { HandoffPanel } from "@/components/HandoffPanel";
 import { useMerchant } from "@/hooks/useMerchants";
 import { useConversation } from "@/hooks/useConversations";
 import { useMessages } from "@/hooks/useMessages";
@@ -203,9 +204,9 @@ export default function ConversationDetail() {
     }
   };
 
-  const handleSendManualReply = async () => {
+  const sendHumanReply = async (textInput?: string, sourceSuggestionId?: string) => {
     if (!conversation || !conversationId) return;
-    const content = manualReply.trim();
+    const content = (textInput ?? manualReply).trim();
     if (!content) return;
 
     setSendingManualReply(true);
@@ -234,12 +235,39 @@ export default function ConversationDetail() {
 
       if (result.ok) {
         toast.success("Reply sent");
-        setManualReply("");
+        if (!textInput) setManualReply("");
       } else if (result.send_status === "queued") {
         toast.message("Reply queued", { description: "Temporary provider issue. Retry scheduled automatically." });
-        setManualReply("");
+        if (!textInput) setManualReply("");
       } else {
         toast.error(result.error || "Failed to send reply");
+      }
+
+      if (sourceSuggestionId) {
+        await (supabase as any).from("activities").insert({
+          org_id: conversation.org_id,
+          entity_type: "conversation",
+          entity_id: conversationId,
+          activity_type: "note",
+          description: `human_send_from_suggestion:${sourceSuggestionId}`,
+          created_by: user?.id ?? null,
+        });
+
+        await (supabase as any).from("channel_events").insert({
+          org_id: conversation.org_id,
+          merchant_id: conversation.merchant_id,
+          channel: "whatsapp",
+          provider: "meta",
+          event_type: "suggested_reply_sent",
+          provider_event_id: `suggested_reply_${conversationId}_${Date.now()}`,
+          external_contact: conversation.external_contact,
+          severity: "info",
+          payload: {
+            source: "conversation_detail",
+            suggestion_id: sourceSuggestionId,
+            message_id: message.id,
+          },
+        }).then(() => undefined).catch(() => undefined);
       }
 
       queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
@@ -252,6 +280,10 @@ export default function ConversationDetail() {
     } finally {
       setSendingManualReply(false);
     }
+  };
+
+  const handleSendManualReply = async () => {
+    await sendHumanReply();
   };
 
   const handleDiscardDraft = async () => {
@@ -375,6 +407,14 @@ export default function ConversationDetail() {
         </CardHeader>
         <Separator />
         <CardContent className="p-6">
+          <HandoffPanel
+            conversationId={conversationId}
+            onUseReply={setManualReply}
+            onSendReply={async (text, suggestionId) => {
+              await sendHumanReply(text, suggestionId);
+            }}
+          />
+          <div className="my-4" />
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
               <div className="h-6 w-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
