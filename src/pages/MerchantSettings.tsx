@@ -5,6 +5,9 @@ import { AlertTriangle, CheckCircle2, Loader2, RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { useMerchant } from "@/hooks/useMerchants";
 import { useMerchantSettings } from "@/hooks/useMerchantSettings";
+import { callEdge } from "@/lib/edge";
+import { META_CONFIG_ID, getMetaRedirectUri } from "@/lib/meta/constants";
+import { loadFacebookSdk } from "@/lib/meta/fbSdk";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -72,6 +75,8 @@ type TemplateRow = {
   language: string;
 };
 
+type EmbeddedStatus = "idle" | "connecting" | "exchanging" | "validating" | "done" | "error";
+
 function toTemplateRows(value: unknown): TemplateRow[] {
   if (!Array.isArray(value)) return [];
   return value
@@ -91,6 +96,7 @@ export default function MerchantSettings() {
   const { merchantId } = useParams<{ merchantId: string }>();
   const isWizardRoute = location.pathname.startsWith("/onboarding/whatsapp/");
   const [testRecipient, setTestRecipient] = useState("");
+  const [embeddedStatus, setEmbeddedStatus] = useState<EmbeddedStatus>("idle");
 
   const { data: merchant, isLoading: isLoadingMerchant } = useMerchant(merchantId!);
   const {
@@ -164,6 +170,15 @@ export default function MerchantSettings() {
     && (outboundStatus === "pass" || settings?.connectivity_outbound_ok)
     && (inboundStatus === "pass" || settings?.connectivity_inbound_ok),
   );
+  const embeddedStepLabel: Record<EmbeddedStatus, string> = {
+    idle: "Ready to connect",
+    connecting: "Opening Meta signup",
+    exchanging: "Exchanging authorization code",
+    validating: "Validating account",
+    done: "Connection complete",
+    error: "Connection failed",
+  };
+  const embeddedBusy = embeddedStatus === "connecting" || embeddedStatus === "exchanging" || embeddedStatus === "validating";
 
   const onRefresh = async () => {
     try {
@@ -203,6 +218,85 @@ export default function MerchantSettings() {
       toast.success("Inbound marker check completed");
     } catch (invokeError) {
       toast.error(invokeError instanceof Error ? invokeError.message : "Inbound marker check failed");
+    }
+  };
+
+  const onEmbeddedSignupConnect = async () => {
+    if (!merchantId) return;
+
+    try {
+      setEmbeddedStatus("connecting");
+      await loadFacebookSdk();
+      const redirectUri = getMetaRedirectUri();
+
+      const init = await callEdge<{ ok?: boolean; state?: string; error?: string }>("meta-embedded-signup-init", {
+        merchant_id: merchantId,
+        redirect_uri: redirectUri,
+      });
+      const state = init?.state;
+      if (!state) throw new Error(init?.error ?? "Could not initialize Meta signup state");
+      sessionStorage.setItem(`embudex.meta.state.${merchantId}`, state);
+
+      let hintedWabaId: string | null = null;
+      let hintedPhoneId: string | null = null;
+      const listener = (event: MessageEvent) => {
+        if (!event.origin.includes("facebook.com")) return;
+        try {
+          const raw = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
+          const payload = (raw as Record<string, unknown>)?.data ?? raw;
+          const parsed = payload as Record<string, unknown>;
+          const waba = parsed?.waba_id ?? parsed?.business_account_id ?? parsed?.whatsapp_business_account_id;
+          const phone = parsed?.phone_number_id ?? parsed?.phone_id;
+          if (typeof waba === "string") hintedWabaId = waba;
+          if (typeof phone === "string") hintedPhoneId = phone;
+        } catch {
+          // Ignore non-JSON payloads from SDK internals.
+        }
+      };
+      window.addEventListener("message", listener);
+
+      let code: string | undefined;
+      try {
+        const authResponse = await new Promise<{ code?: string }>((resolve) => {
+          window.FB?.login(
+            (response) => resolve({ code: response?.authResponse?.code }),
+            {
+              config_id: META_CONFIG_ID,
+              response_type: "code",
+              override_default_response_type: true,
+              extras: { setup: {} },
+            },
+          );
+        });
+        code = authResponse.code;
+      } finally {
+        window.removeEventListener("message", listener);
+      }
+
+      if (!code) {
+        setEmbeddedStatus("error");
+        toast.error("Meta signup was cancelled or did not return an authorization code.");
+        return;
+      }
+
+      setEmbeddedStatus("exchanging");
+      const result = await callEdge<{ ok?: boolean; error?: string }>("meta-embedded-signup-exchange", {
+        merchant_id: merchantId,
+        code,
+        state,
+        redirect_uri: redirectUri,
+        waba_id: hintedWabaId,
+        phone_number_id: hintedPhoneId,
+      });
+      if (result?.ok === false) throw new Error(result.error ?? "Failed to exchange Meta authorization code");
+
+      setEmbeddedStatus("validating");
+      await refreshStatus();
+      setEmbeddedStatus("done");
+      toast.success("WhatsApp connected successfully.");
+    } catch (invokeError) {
+      setEmbeddedStatus("error");
+      toast.error(invokeError instanceof Error ? invokeError.message : "Failed to connect WhatsApp");
     }
   };
 
@@ -256,6 +350,27 @@ export default function MerchantSettings() {
           <p className="text-sm text-muted-foreground">Connection identity and credential health.</p>
         </div>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <Card className="md:col-span-2 xl:col-span-4">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Connect with Meta</CardTitle>
+              <CardDescription>Use Facebook/Meta Embedded Signup to connect a WhatsApp Business account.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant={embeddedStatus === "error" ? "destructive" : embeddedStatus === "done" ? "secondary" : "outline"}>
+                  {embeddedStepLabel[embeddedStatus]}
+                </Badge>
+                <Button onClick={() => void onEmbeddedSignupConnect()} disabled={embeddedBusy}>
+                  {embeddedBusy ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                  {settings?.meta_phone_number_id ? "Reconnect WhatsApp" : "Connect WhatsApp via Meta"}
+                </Button>
+              </div>
+              <div className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
+                <p>Meta WABA ID: {settings?.meta_waba_id ?? "Not connected"}</p>
+                <p>Meta Phone Number ID: {settings?.meta_phone_number_id ?? "Not connected"}</p>
+              </div>
+            </CardContent>
+          </Card>
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm">Phone Number ID</CardTitle>
