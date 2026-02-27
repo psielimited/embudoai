@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { formatDistanceToNow } from "date-fns";
 import { AlertTriangle, CheckCircle2, Loader2, RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
+import { useAuth } from "@/hooks/useAuth";
 import { useMerchant } from "@/hooks/useMerchants";
 import { useMerchantSettings } from "@/hooks/useMerchantSettings";
 import { callEdge } from "@/lib/edge";
@@ -93,6 +94,7 @@ function toTemplateRows(value: unknown): TemplateRow[] {
 export default function MerchantSettings() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { signOut } = useAuth();
   const { merchantId } = useParams<{ merchantId: string }>();
   const isWizardRoute = location.pathname.startsWith("/onboarding/whatsapp/");
   const [testRecipient, setTestRecipient] = useState("");
@@ -300,6 +302,15 @@ export default function MerchantSettings() {
     }
   };
 
+  const onAbortAndLogout = async () => {
+    const { error: signOutError } = await signOut();
+    if (signOutError) {
+      toast.error(signOutError.message || "Failed to log out");
+      return;
+    }
+    navigate("/login", { replace: true });
+  };
+
   if (isLoadingMerchant || isLoadingSettings) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -317,6 +328,11 @@ export default function MerchantSettings() {
         actions={
           <div className="flex items-center gap-2">
             {overallBadge}
+            {isWizardRoute && (
+              <Button variant="ghost" onClick={() => void onAbortAndLogout()}>
+                Abort and log out
+              </Button>
+            )}
             <Button variant="outline" onClick={() => void onRefresh()} disabled={isRefreshing}>
               {isRefreshing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
               Refresh
