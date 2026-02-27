@@ -7,7 +7,11 @@ import { useAuth } from "@/hooks/useAuth";
 import { useMerchant } from "@/hooks/useMerchants";
 import { useMerchantSettings } from "@/hooks/useMerchantSettings";
 import { callEdge } from "@/lib/edge";
-import { META_CONFIG_ID, getMetaRedirectUri } from "@/lib/meta/constants";
+import {
+  META_EMBEDDED_SIGNUP_CONFIG_ID_SANDBOX,
+  getMetaEmbeddedSignupConfigIdProd,
+  getMetaRedirectUri,
+} from "@/lib/meta/constants";
 import { loadFacebookSdk } from "@/lib/meta/fbSdk";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -24,21 +28,30 @@ import {
 } from "@/components/ui/accordion";
 import { toast } from "sonner";
 
-type HealthStatus = "pass" | "fail" | "unknown";
+type HealthStatus = "pass" | "fail" | "unknown" | "blocked_sandbox";
 
 function normalizeStatus(status: string | null | undefined, legacyPass?: boolean, hasError?: boolean): HealthStatus {
-  if (status === "pass" || status === "fail" || status === "unknown") return status;
+  if (status === "pass" || status === "fail" || status === "unknown" || status === "blocked_sandbox") return status;
   if (legacyPass === true) return "pass";
   if (legacyPass === false || hasError) return "fail";
   return "unknown";
 }
 
-function statusBadge(status: HealthStatus, passLabel = "Pass", failLabel = "Fail", unknownLabel = "Unknown") {
+function statusBadge(
+  status: HealthStatus,
+  passLabel = "Pass",
+  failLabel = "Fail",
+  unknownLabel = "Unknown",
+  blockedLabel = "Blocked (Sandbox)",
+) {
   if (status === "pass") {
     return <Badge className="bg-green-500/10 text-green-700 border-green-500/20">{passLabel}</Badge>;
   }
   if (status === "fail") {
     return <Badge className="bg-red-500/10 text-red-700 border-red-500/20">{failLabel}</Badge>;
+  }
+  if (status === "blocked_sandbox") {
+    return <Badge className="bg-amber-500/10 text-amber-700 border-amber-500/20">{blockedLabel}</Badge>;
   }
   return <Badge variant="outline">{unknownLabel}</Badge>;
 }
@@ -69,6 +82,17 @@ function toNumber(value: unknown, fallback = 0) {
   return fallback;
 }
 
+function parseSandboxErrorPayload(raw: string | null | undefined) {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (!parsed || typeof parsed !== "object") return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
 type TemplateRow = {
   name: string;
   status: string;
@@ -94,7 +118,7 @@ function toTemplateRows(value: unknown): TemplateRow[] {
 export default function MerchantSettings() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { signOut } = useAuth();
+  const { signOut, isSandbox } = useAuth();
   const { merchantId } = useParams<{ merchantId: string }>();
   const isWizardRoute = location.pathname.startsWith("/onboarding/whatsapp/");
   const [testRecipient, setTestRecipient] = useState("");
@@ -165,12 +189,16 @@ export default function MerchantSettings() {
   const approvedCount = toNumber(templateSummary?.approved_count, settings?.template_approved_count ?? 0);
   const pendingCount = toNumber(templateSummary?.pending_count, settings?.template_pending_count ?? 0);
   const rejectedCount = toNumber(templateSummary?.rejected_count, settings?.template_rejected_count ?? 0);
+  const outboundErrorPayload = parseSandboxErrorPayload(settings?.last_outbound_error ?? settings?.connectivity_outbound_error);
+  const inboundErrorPayload = parseSandboxErrorPayload(settings?.inbound_error);
+  const outboundSandboxBlocked = outboundStatus === "blocked_sandbox" || outboundErrorPayload?.sandbox_blocked === true;
+  const inboundSandboxBlocked = inboundStatus === "blocked_sandbox" || inboundErrorPayload?.sandbox_blocked === true;
 
   const merchantSetupComplete = Boolean(
     (credsStatus === "pass" || settings?.credentials_valid)
     && (webhookStatus === "pass" || settings?.webhook_challenge_valid)
-    && (outboundStatus === "pass" || settings?.connectivity_outbound_ok)
-    && (inboundStatus === "pass" || settings?.connectivity_inbound_ok),
+    && (outboundStatus === "pass" || outboundStatus === "blocked_sandbox" || settings?.connectivity_outbound_ok)
+    && (inboundStatus === "pass" || inboundStatus === "blocked_sandbox" || settings?.connectivity_inbound_ok),
   );
   const embeddedStepLabel: Record<EmbeddedStatus, string> = {
     idle: "Ready to connect",
@@ -207,8 +235,12 @@ export default function MerchantSettings() {
       return;
     }
     try {
-      await sendTestOutbound(recipient);
-      toast.success("Test outbound sent");
+      const result = await sendTestOutbound(recipient) as { sandbox_blocked?: boolean };
+      if (result?.sandbox_blocked) {
+        toast.info("Blocked by Meta sandbox constraints; not a code failure.");
+      } else {
+        toast.success("Test outbound sent");
+      }
     } catch (invokeError) {
       toast.error(invokeError instanceof Error ? invokeError.message : "Outbound test failed");
     }
@@ -216,8 +248,12 @@ export default function MerchantSettings() {
 
   const onCheckInbound = async () => {
     try {
-      await checkInboundMarker(testRecipient.trim() || undefined);
-      toast.success("Inbound marker check completed");
+      const result = await checkInboundMarker(testRecipient.trim() || undefined) as { sandbox_blocked?: boolean };
+      if (result?.sandbox_blocked) {
+        toast.info("Inbound checks are sandbox-limited; webhook verification remains the key signal.");
+      } else {
+        toast.success("Inbound marker check completed");
+      }
     } catch (invokeError) {
       toast.error(invokeError instanceof Error ? invokeError.message : "Inbound marker check failed");
     }
@@ -259,11 +295,14 @@ export default function MerchantSettings() {
 
       let code: string | undefined;
       try {
+        const embeddedConfigId = isSandbox
+          ? META_EMBEDDED_SIGNUP_CONFIG_ID_SANDBOX
+          : getMetaEmbeddedSignupConfigIdProd();
         const authResponse = await new Promise<{ code?: string }>((resolve) => {
           window.FB?.login(
             (response) => resolve({ code: response?.authResponse?.code }),
             {
-              config_id: META_CONFIG_ID,
+              config_id: embeddedConfigId,
               response_type: "code",
               override_default_response_type: true,
               extras: { setup: {} },
@@ -327,6 +366,9 @@ export default function MerchantSettings() {
         breadcrumbs={isWizardRoute ? [{ label: "Onboarding" }, { label: "WhatsApp" }] : [{ label: "Merchants", href: "/merchants" }, { label: merchant?.name ?? "Merchant", href: `/merchants/${merchantId}/conversations` }, { label: "WhatsApp" }]}
         actions={
           <div className="flex items-center gap-2">
+            {isSandbox && (
+              <Badge className="bg-amber-500/10 text-amber-700 border-amber-500/20">SANDBOX MODE</Badge>
+            )}
             {overallBadge}
             {isWizardRoute && (
               <Button variant="ghost" onClick={() => void onAbortAndLogout()}>
@@ -349,6 +391,16 @@ export default function MerchantSettings() {
         </Alert>
       )}
 
+      {isSandbox && (
+        <Alert>
+          <AlertTriangle className="h-4 w-4 text-amber-600" />
+          <AlertTitle>Sandbox Mode (email-gated)</AlertTitle>
+          <AlertDescription>
+            This account is running Meta sandbox onboarding. Some outbound/inbound checks can be blocked by Meta constraints.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {merchantSetupComplete && isWizardRoute && (
         <Alert>
           <CheckCircle2 className="h-4 w-4 text-green-600" />
@@ -368,8 +420,10 @@ export default function MerchantSettings() {
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <Card className="md:col-span-2 xl:col-span-4">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm">Connect with Meta</CardTitle>
-              <CardDescription>Use Facebook/Meta Embedded Signup to connect a WhatsApp Business account.</CardDescription>
+              <CardTitle className="text-sm">Connect with Meta {isSandbox ? "(Sandbox)" : "(Production)"}</CardTitle>
+              <CardDescription>
+                Use Facebook/Meta Embedded Signup to connect a WhatsApp Business account.
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex flex-wrap items-center gap-2">
@@ -378,12 +432,16 @@ export default function MerchantSettings() {
                 </Badge>
                 <Button onClick={() => void onEmbeddedSignupConnect()} disabled={embeddedBusy}>
                   {embeddedBusy ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-                  {settings?.meta_phone_number_id ? "Reconnect WhatsApp" : "Connect WhatsApp via Meta"}
+                  {(isSandbox ? settings?.whatsapp_sandbox_phone_number_id : settings?.meta_phone_number_id) ? "Reconnect WhatsApp" : "Connect WhatsApp via Meta"}
                 </Button>
               </div>
               <div className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
-                <p>Meta WABA ID: {settings?.meta_waba_id ?? "Not connected"}</p>
-                <p>Meta Phone Number ID: {settings?.meta_phone_number_id ?? "Not connected"}</p>
+                <p>
+                  {isSandbox ? "Sandbox WABA ID" : "Meta WABA ID"}: {(isSandbox ? settings?.whatsapp_sandbox_waba_id : settings?.meta_waba_id) ?? "Not connected"}
+                </p>
+                <p>
+                  {isSandbox ? "Sandbox Phone Number ID" : "Meta Phone Number ID"}: {(isSandbox ? settings?.whatsapp_sandbox_phone_number_id : settings?.meta_phone_number_id) ?? "Not connected"}
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -392,7 +450,13 @@ export default function MerchantSettings() {
               <CardTitle className="text-sm">Phone Number ID</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-sm font-mono">{maskTail(settings?.whatsapp_phone_number_id ?? settings?.meta_phone_number_id)}</p>
+              <p className="text-sm font-mono">
+                {maskTail(
+                  isSandbox
+                    ? settings?.whatsapp_sandbox_phone_number_id
+                    : (settings?.whatsapp_phone_number_id ?? settings?.meta_phone_number_id),
+                )}
+              </p>
             </CardContent>
           </Card>
           <Card>
@@ -400,7 +464,9 @@ export default function MerchantSettings() {
               <CardTitle className="text-sm">WABA ID</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-sm font-mono">{maskTail(settings?.whatsapp_waba_id ?? settings?.meta_waba_id)}</p>
+              <p className="text-sm font-mono">
+                {maskTail(isSandbox ? settings?.whatsapp_sandbox_waba_id : (settings?.whatsapp_waba_id ?? settings?.meta_waba_id))}
+              </p>
             </CardContent>
           </Card>
           <Card>
@@ -455,9 +521,12 @@ export default function MerchantSettings() {
               <CardTitle className="text-sm">Inbound Activity</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              {statusBadge(inboundStatus, "Inbound OK", "Inbound issue", "No inbound yet")}
+              {statusBadge(inboundStatus, "Inbound OK", "Inbound issue", "No inbound yet", "Blocked by Sandbox")}
               <p className="text-xs text-muted-foreground">{formatTs(settings?.last_inbound_at ?? settings?.last_webhook_received_at)}</p>
-              {settings?.inbound_error && (
+              {inboundSandboxBlocked && (
+                <p className="text-xs text-amber-700">Blocked by Meta sandbox constraints; not a code failure.</p>
+              )}
+              {settings?.inbound_error && !inboundSandboxBlocked && (
                 <p className="text-xs text-destructive line-clamp-3">{settings.inbound_error}</p>
               )}
             </CardContent>
@@ -506,7 +575,10 @@ export default function MerchantSettings() {
             </CardHeader>
             <CardContent className="space-y-2">
               <p className="text-sm">{formatTs(settings?.last_outbound_failure_at)}</p>
-              {(settings?.last_outbound_error ?? settings?.connectivity_outbound_error) && (
+              {outboundSandboxBlocked && (
+                <p className="text-xs text-amber-700">Blocked by Meta sandbox constraints; not a code failure.</p>
+              )}
+              {(settings?.last_outbound_error ?? settings?.connectivity_outbound_error) && !outboundSandboxBlocked && (
                 <p className="text-xs text-destructive line-clamp-3">{settings?.last_outbound_error ?? settings?.connectivity_outbound_error}</p>
               )}
             </CardContent>
@@ -515,7 +587,7 @@ export default function MerchantSettings() {
             <CardHeader className="pb-2">
               <CardTitle className="text-sm">Outbound Status</CardTitle>
             </CardHeader>
-            <CardContent>{statusBadge(outboundStatus, "Healthy", "Failing", "Unknown")}</CardContent>
+            <CardContent>{statusBadge(outboundStatus, "Healthy", "Failing", "Unknown", "Blocked by Sandbox")}</CardContent>
           </Card>
         </div>
         <Card>
@@ -552,7 +624,9 @@ export default function MerchantSettings() {
       <section className="space-y-4">
         <div>
           <h2 className="text-base font-semibold">Templates</h2>
-          <p className="text-sm text-muted-foreground">Approval summary and template inventory.</p>
+          <p className="text-sm text-muted-foreground">
+            {isSandbox ? "Template data can be limited in sandbox mode." : "Approval summary and template inventory."}
+          </p>
         </div>
         <Card>
           <CardHeader>
@@ -575,7 +649,7 @@ export default function MerchantSettings() {
           </CardContent>
         </Card>
 
-        {templateRows.length > 0 && (
+        {!isSandbox && templateRows.length > 0 && (
           <Card>
             <CardHeader>
               <CardTitle className="text-sm">Template list</CardTitle>

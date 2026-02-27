@@ -17,6 +17,12 @@ function randomState() {
   return crypto.randomUUID().replace(/-/g, "") + crypto.randomUUID().replace(/-/g, "");
 }
 
+function isSandboxEmail(email: string | null | undefined) {
+  const normalized = email?.trim().toLowerCase();
+  if (!normalized) return false;
+  return normalized.endsWith("@yopmail.com");
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
@@ -58,6 +64,14 @@ Deno.serve(async (req) => {
       .eq("user_id", user.id)
       .maybeSingle();
     if (!member) return json({ error: "Not authorized for this organization" }, 403);
+
+    await service
+      .from("merchant_settings")
+      .upsert({
+        org_id: merchant.org_id,
+        merchant_id: merchant.id,
+        whatsapp_is_sandbox: isSandboxEmail(user.email),
+      }, { onConflict: "merchant_id" });
 
     const state = randomState();
     const { error: insertErr } = await service.from("meta_signup_nonces").insert({

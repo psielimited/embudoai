@@ -78,19 +78,21 @@ export function SubscriptionGuard({ children, bypass = false }: SubscriptionGuar
 
       const { data: settings, error: settingsErr } = await supabase
         .from("merchant_settings")
-        .select("onboarding_step,credentials_valid,webhook_challenge_valid,connectivity_outbound_ok,connectivity_inbound_ok")
+        .select("onboarding_step,credentials_valid,webhook_challenge_valid,connectivity_outbound_ok,connectivity_inbound_ok,outbound_status,inbound_status")
         .eq("org_id", activeOrgId!)
         .eq("merchant_id", primaryMerchant.id)
         .maybeSingle();
       if (settingsErr) throw settingsErr;
 
+      const outboundReady = settings?.connectivity_outbound_ok || settings?.outbound_status === "blocked_sandbox";
+      const inboundReady = settings?.connectivity_inbound_ok || settings?.inbound_status === "blocked_sandbox";
       const setupComplete = Boolean(
         settings
         && settings.onboarding_step >= 3
         && settings.credentials_valid
         && settings.webhook_challenge_valid
-        && settings.connectivity_outbound_ok
-        && settings.connectivity_inbound_ok,
+        && outboundReady
+        && inboundReady,
       );
 
       return {

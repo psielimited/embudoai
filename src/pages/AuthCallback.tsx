@@ -37,18 +37,20 @@ async function resolveDestination() {
 
   const { data: settings } = await supabase
     .from("merchant_settings")
-    .select("onboarding_step,credentials_valid,webhook_challenge_valid,connectivity_outbound_ok,connectivity_inbound_ok")
+    .select("onboarding_step,credentials_valid,webhook_challenge_valid,connectivity_outbound_ok,connectivity_inbound_ok,outbound_status,inbound_status")
     .eq("merchant_id", primaryMerchant.id)
     .eq("org_id", activeOrgId)
     .maybeSingle();
 
+  const outboundReady = settings?.connectivity_outbound_ok || settings?.outbound_status === "blocked_sandbox";
+  const inboundReady = settings?.connectivity_inbound_ok || settings?.inbound_status === "blocked_sandbox";
   const merchantSetupComplete = Boolean(
     settings
       && settings.onboarding_step >= 3
       && settings.credentials_valid
       && settings.webhook_challenge_valid
-      && settings.connectivity_outbound_ok
-      && settings.connectivity_inbound_ok,
+      && outboundReady
+      && inboundReady,
   );
 
   return merchantSetupComplete ? "/merchants" : `/onboarding/whatsapp/${primaryMerchant.id}/credentials`;

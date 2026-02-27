@@ -1,10 +1,13 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { isSandboxEmail } from "@/lib/sandbox";
 
 interface AuthContextValue {
   user: User | null;
   session: Session | null;
+  email: string | null;
+  isSandbox: boolean;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string) => Promise<{ error: Error | null }>;
@@ -50,29 +53,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo<AuthContextValue>(
-    () => ({
-      user,
-      session,
-      loading,
-      signIn: async (email: string, password: string) => {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        return { error: (error as Error | null) ?? null };
-      },
-      signUp: async (email: string, password: string) => {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo: window.location.origin,
-          },
-        });
-        return { error: (error as Error | null) ?? null };
-      },
-      signOut: async () => {
-        const { error } = await supabase.auth.signOut();
-        return { error: (error as Error | null) ?? null };
-      },
-    }),
+    () => {
+      const email = user?.email ?? null;
+      return {
+        user,
+        session,
+        email,
+        isSandbox: isSandboxEmail(email),
+        loading,
+        signIn: async (email: string, password: string) => {
+          const { error } = await supabase.auth.signInWithPassword({ email, password });
+          return { error: (error as Error | null) ?? null };
+        },
+        signUp: async (email: string, password: string) => {
+          const { error } = await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+              emailRedirectTo: window.location.origin,
+            },
+          });
+          return { error: (error as Error | null) ?? null };
+        },
+        signOut: async () => {
+          const { error } = await supabase.auth.signOut();
+          return { error: (error as Error | null) ?? null };
+        },
+      };
+    },
     [loading, session, user],
   );
 

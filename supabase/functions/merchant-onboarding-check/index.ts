@@ -1,4 +1,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  encodeSandboxErrorPayload,
+  isSandboxBlockedGraphError,
+  resolveOnboardingPhoneNumberId,
+} from "./sandbox.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -81,9 +86,19 @@ Deno.serve(async (req) => {
 
     const { data: currentSettings } = await supabase
       .from("merchant_settings")
-      .select("meta_waba_id, whatsapp_waba_id, whatsapp_business_id, whatsapp_phone_number_id, templates_summary, onboarding_step")
+      .select("meta_waba_id, whatsapp_waba_id, whatsapp_business_id, whatsapp_phone_number_id, templates_summary, onboarding_step, whatsapp_is_sandbox, whatsapp_sandbox_waba_id, whatsapp_sandbox_phone_number_id")
       .eq("merchant_id", merchant.id)
       .maybeSingle();
+
+    const isSandbox = Boolean(currentSettings?.whatsapp_is_sandbox);
+    const resolvedPhoneNumberId = resolveOnboardingPhoneNumberId(isSandbox, {
+      merchantPhoneNumberId: merchant.whatsapp_phone_number_id,
+      settingsPhoneNumberId: currentSettings?.whatsapp_phone_number_id,
+      sandboxPhoneNumberId: currentSettings?.whatsapp_sandbox_phone_number_id,
+    });
+    const resolvedWabaId = isSandbox
+      ? (currentSettings?.whatsapp_sandbox_waba_id ?? null)
+      : (currentSettings?.whatsapp_waba_id ?? currentSettings?.meta_waba_id ?? null);
 
     const { data: subscription } = await supabase
       .from("org_subscriptions")
@@ -112,7 +127,7 @@ Deno.serve(async (req) => {
 
     if (action === "validate_credentials") {
       const verifyToken = merchant.whatsapp_verify_token ?? (Deno.env.get("META_WEBHOOK_VERIFY_TOKEN") ?? null);
-      if (!merchant.whatsapp_phone_number_id || !merchant.whatsapp_access_token || !verifyToken) {
+      if (!resolvedPhoneNumberId || !merchant.whatsapp_access_token || !verifyToken) {
         return json({
           ok: false,
           error: "Missing merchant credentials. Connect WhatsApp first.",
@@ -120,7 +135,7 @@ Deno.serve(async (req) => {
       }
 
       const tokenCheck = await graphGet(
-        `${merchant.whatsapp_phone_number_id}?fields=id,display_phone_number,verified_name`,
+        `${resolvedPhoneNumberId}?fields=id,display_phone_number,verified_name`,
         merchant.whatsapp_access_token,
       );
 
@@ -153,9 +168,8 @@ Deno.serve(async (req) => {
         // Keep template stats best-effort; do not fail credential validation if WABA id is unavailable.
         const wabaId = (tokenCheck.body?.whatsapp_business_account?.id
           ?? tokenCheck.body?.whatsapp_business_account_id
-          ?? currentSettings?.whatsapp_waba_id
-          ?? currentSettings?.meta_waba_id) as string | undefined;
-        if (wabaId) {
+          ?? resolvedWabaId) as string | undefined;
+        if (wabaId && !isSandbox) {
           const tplRes = await graphGet(`${wabaId}/message_templates?fields=name,status,category,language&limit=100`, merchant.whatsapp_access_token);
           if (tplRes.ok) {
             const templates = Array.isArray(tplRes.body?.data) ? tplRes.body.data : [];
@@ -185,11 +199,29 @@ Deno.serve(async (req) => {
         }
       }
 
+      const modeSpecificFields = isSandbox
+        ? {
+          whatsapp_phone_number_id: null,
+          whatsapp_waba_id: null,
+          meta_waba_id: null,
+          meta_phone_number_id: null,
+          meta_access_token_last4: null,
+          meta_token_updated_at: null,
+          whatsapp_sandbox_phone_number_id: resolvedPhoneNumberId,
+          whatsapp_sandbox_waba_id: resolvedWabaId,
+        }
+        : {
+          whatsapp_phone_number_id: resolvedPhoneNumberId,
+          whatsapp_waba_id: resolvedWabaId,
+          whatsapp_sandbox_phone_number_id: null,
+          whatsapp_sandbox_waba_id: null,
+        };
+
       const settings = await upsertSettings({
+        whatsapp_is_sandbox: isSandbox,
         onboarding_step: tokenValid && webhookValid ? 2 : 1,
-        whatsapp_phone_number_id: merchant.whatsapp_phone_number_id,
-        whatsapp_waba_id: currentSettings?.whatsapp_waba_id ?? currentSettings?.meta_waba_id ?? null,
         whatsapp_business_id: currentSettings?.whatsapp_business_id ?? null,
+        ...modeSpecificFields,
         credentials_valid: tokenValid,
         credentials_last_checked_at: now,
         credentials_error: tokenError,
@@ -205,11 +237,12 @@ Deno.serve(async (req) => {
         token_valid: tokenValid,
         token_last_checked_at: now,
         token_expires_at: null,
-        templates_summary: templatesSummary ?? currentSettings?.templates_summary ?? null,
+        templates_summary: isSandbox ? null : (templatesSummary ?? currentSettings?.templates_summary ?? null),
         templates_checked_at: now,
         ...templateInfo,
         last_validation_payload: {
           action: "validate_credentials",
+          mode: isSandbox ? "sandbox" : "production",
           checked_at: now,
           token_valid: tokenValid,
           webhook_challenge_valid: webhookValid,
@@ -265,7 +298,7 @@ Deno.serve(async (req) => {
         }, 403);
       }
 
-      if (!merchant.whatsapp_phone_number_id || !merchant.whatsapp_access_token) {
+      if (!resolvedPhoneNumberId || !merchant.whatsapp_access_token) {
         return json({ ok: false, error: "Missing merchant WhatsApp credentials" }, 400);
       }
 
@@ -279,9 +312,14 @@ Deno.serve(async (req) => {
         },
       };
 
-      const sendRes = await graphPost(`${merchant.whatsapp_phone_number_id}/messages`, merchant.whatsapp_access_token, testPayload);
-      const isOk = sendRes.ok;
-      const error = isOk ? null : JSON.stringify(sendRes.body?.error ?? sendRes.body).slice(0, 500);
+      const sendRes = await graphPost(`${resolvedPhoneNumberId}/messages`, merchant.whatsapp_access_token, testPayload);
+      const sandboxBlocked = isSandbox && !sendRes.ok && isSandboxBlockedGraphError(sendRes.body);
+      const isOk = sendRes.ok || sandboxBlocked;
+      const error = sendRes.ok
+        ? null
+        : sandboxBlocked
+          ? encodeSandboxErrorPayload(sendRes.body, "Blocked by Meta sandbox constraints")
+          : JSON.stringify(sendRes.body?.error ?? sendRes.body).slice(0, 500);
 
       await supabase.from("channel_events").insert({
         org_id: merchant.org_id,
@@ -301,17 +339,20 @@ Deno.serve(async (req) => {
 
       const settings = await upsertSettings({
         onboarding_step: isOk ? 2 : 2,
-        connectivity_outbound_ok: isOk,
+        whatsapp_is_sandbox: isSandbox,
+        connectivity_outbound_ok: sendRes.ok,
         connectivity_outbound_last_checked_at: now,
         connectivity_outbound_error: error,
-        outbound_status: isOk ? "pass" : "fail",
+        outbound_status: sendRes.ok ? "pass" : sandboxBlocked ? "blocked_sandbox" : "fail",
         last_outbound_error: error,
-        last_outbound_success_at: isOk ? now : undefined,
-        last_outbound_failure_at: isOk ? undefined : now,
+        last_outbound_success_at: sendRes.ok ? now : undefined,
+        last_outbound_failure_at: sendRes.ok ? undefined : now,
         last_validation_payload: {
           action: "connectivity_test_outbound",
+          mode: isSandbox ? "sandbox" : "production",
           checked_at: now,
-          ok: isOk,
+          ok: sendRes.ok,
+          sandbox_blocked: sandboxBlocked,
           error,
           test_to: testTo,
         },
@@ -322,6 +363,7 @@ Deno.serve(async (req) => {
         validation_results: {
           connectivity_test_outbound: {
             ok: isOk,
+            sandbox_blocked: sandboxBlocked,
             checked_at: now,
             test_to: testTo,
             provider_message_id: sendRes.body?.messages?.[0]?.id ?? null,
@@ -329,7 +371,7 @@ Deno.serve(async (req) => {
         },
       });
 
-      return json({ ok: isOk, send_response: sendRes.body, settings, error });
+      return json({ ok: isOk, send_response: sendRes.body, settings, error, sandbox_blocked: sandboxBlocked });
     }
 
     if (action === "check_inbound_marker") {
@@ -353,32 +395,39 @@ Deno.serve(async (req) => {
 
       const latest = inboundRows?.[0] ?? null;
       const inboundOk = !!latest;
+      const sandboxBlocked = isSandbox && !inboundOk;
 
       const settings = await upsertSettings({
-        onboarding_step: inboundOk ? 3 : 2,
+        onboarding_step: inboundOk || sandboxBlocked ? 3 : 2,
+        whatsapp_is_sandbox: isSandbox,
         connectivity_inbound_ok: inboundOk,
         connectivity_inbound_last_checked_at: now,
         connectivity_inbound_marker: latest?.provider_event_id ?? null,
         last_inbound_at: latest?.created_at ?? null,
         last_inbound_event_id: latest?.id ?? null,
-        inbound_status: inboundOk ? "pass" : "fail",
-        inbound_error: inboundOk ? null : "No inbound marker found yet",
+        inbound_status: inboundOk ? "pass" : sandboxBlocked ? "blocked_sandbox" : "fail",
+        inbound_error: inboundOk ? null : sandboxBlocked
+          ? JSON.stringify({ message: "Blocked by Meta sandbox constraints; no inbound marker yet", sandbox_blocked: true, mode: "sandbox" })
+          : "No inbound marker found yet",
         last_webhook_received_at: latest?.created_at ?? null,
         last_validation_payload: {
           action: "check_inbound_marker",
+          mode: isSandbox ? "sandbox" : "production",
           checked_at: now,
           ok: inboundOk,
+          sandbox_blocked: sandboxBlocked,
           marker: latest?.provider_event_id ?? null,
           channel_event_id: latest?.id ?? null,
           external_contact: latest?.external_contact ?? null,
         },
         step_progress: {
-          onboarding_step: inboundOk ? 3 : 2,
+          onboarding_step: inboundOk || sandboxBlocked ? 3 : 2,
           inbound_ok: inboundOk,
         },
         validation_results: {
           check_inbound_marker: {
             ok: inboundOk,
+            sandbox_blocked: sandboxBlocked,
             checked_at: now,
             marker: latest?.provider_event_id ?? null,
             external_contact: latest?.external_contact ?? null,
@@ -386,7 +435,7 @@ Deno.serve(async (req) => {
         },
       });
 
-      return json({ ok: inboundOk, marker: latest, settings });
+      return json({ ok: inboundOk || sandboxBlocked, marker: latest, settings, sandbox_blocked: sandboxBlocked });
     }
 
     // refresh_status
@@ -442,21 +491,27 @@ Deno.serve(async (req) => {
 
       const outboundStatus = lastOutboundFailureAt
         ? (!lastOutboundSuccessAt || new Date(lastOutboundFailureAt).getTime() >= new Date(lastOutboundSuccessAt).getTime() ? "fail" : "pass")
-        : (lastOutboundSuccessAt ? "pass" : "unknown");
-      const inboundStatus = latestInbound ? "pass" : "unknown";
+        : (lastOutboundSuccessAt ? "pass" : isSandbox ? "blocked_sandbox" : "unknown");
+      const inboundStatus = latestInbound ? "pass" : isSandbox ? "blocked_sandbox" : "unknown";
 
       const refreshedSettings = await upsertSettings({
+        whatsapp_is_sandbox: isSandbox,
         last_webhook_received_at: latestWebhook?.created_at ?? null,
         last_inbound_at: latestInbound?.created_at ?? null,
         last_inbound_event_id: latestInbound?.id ?? null,
         inbound_status: inboundStatus,
-        inbound_error: latestInbound ? null : "No inbound marker found yet",
+        inbound_error: latestInbound
+          ? null
+          : isSandbox
+            ? JSON.stringify({ message: "Blocked by Meta sandbox constraints; no inbound marker yet", sandbox_blocked: true, mode: "sandbox" })
+            : "No inbound marker found yet",
         last_outbound_success_at: lastOutboundSuccessAt,
         last_outbound_failure_at: lastOutboundFailureAt,
         last_outbound_error: latestOutboundError,
         outbound_status: outboundStatus,
         last_validation_payload: {
           action: "refresh_status",
+          mode: isSandbox ? "sandbox" : "production",
           checked_at: now,
           inbound_status: inboundStatus,
           outbound_status: outboundStatus,
@@ -480,18 +535,24 @@ Deno.serve(async (req) => {
       });
     }
 
-    const outboundStatus = "unknown";
-    const inboundStatus = latestInbound ? "pass" : "unknown";
+    const outboundStatus = isSandbox ? "blocked_sandbox" : "unknown";
+    const inboundStatus = latestInbound ? "pass" : isSandbox ? "blocked_sandbox" : "unknown";
 
     const settings = await upsertSettings({
+      whatsapp_is_sandbox: isSandbox,
       last_webhook_received_at: latestWebhook?.created_at ?? null,
       last_inbound_at: latestInbound?.created_at ?? null,
       last_inbound_event_id: latestInbound?.id ?? null,
       inbound_status: inboundStatus,
-      inbound_error: latestInbound ? null : "No inbound marker found yet",
+      inbound_error: latestInbound
+        ? null
+        : isSandbox
+          ? JSON.stringify({ message: "Blocked by Meta sandbox constraints; no inbound marker yet", sandbox_blocked: true, mode: "sandbox" })
+          : "No inbound marker found yet",
       outbound_status: outboundStatus,
       last_validation_payload: {
         action: "refresh_status",
+        mode: isSandbox ? "sandbox" : "production",
         checked_at: now,
         inbound_status: inboundStatus,
         outbound_status: outboundStatus,

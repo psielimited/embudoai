@@ -1278,7 +1278,12 @@ export type Database = {
           webhook_verify_error: string | null
           webhook_verify_status: string
           whatsapp_business_id: string | null
+          whatsapp_is_sandbox: boolean
           whatsapp_phone_number_id: string | null
+          whatsapp_sandbox_phone_number_id: string | null
+          whatsapp_sandbox_token_last4: string | null
+          whatsapp_sandbox_token_updated_at: string | null
+          whatsapp_sandbox_waba_id: string | null
           whatsapp_waba_id: string | null
         }
         Insert: {
@@ -1335,7 +1340,12 @@ export type Database = {
           webhook_verify_error?: string | null
           webhook_verify_status?: string
           whatsapp_business_id?: string | null
+          whatsapp_is_sandbox?: boolean
           whatsapp_phone_number_id?: string | null
+          whatsapp_sandbox_phone_number_id?: string | null
+          whatsapp_sandbox_token_last4?: string | null
+          whatsapp_sandbox_token_updated_at?: string | null
+          whatsapp_sandbox_waba_id?: string | null
           whatsapp_waba_id?: string | null
         }
         Update: {
@@ -1392,7 +1402,12 @@ export type Database = {
           webhook_verify_error?: string | null
           webhook_verify_status?: string
           whatsapp_business_id?: string | null
+          whatsapp_is_sandbox?: boolean
           whatsapp_phone_number_id?: string | null
+          whatsapp_sandbox_phone_number_id?: string | null
+          whatsapp_sandbox_token_last4?: string | null
+          whatsapp_sandbox_token_updated_at?: string | null
+          whatsapp_sandbox_waba_id?: string | null
           whatsapp_waba_id?: string | null
         }
         Relationships: [

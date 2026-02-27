@@ -26,6 +26,12 @@ function truncate(value: unknown, max = 500) {
   return raw.slice(0, max);
 }
 
+function isSandboxEmail(email: string | null | undefined) {
+  const normalized = email?.trim().toLowerCase();
+  if (!normalized) return false;
+  return normalized.endsWith("@yopmail.com");
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
@@ -51,6 +57,7 @@ Deno.serve(async (req) => {
       error: userErr,
     } = await userClient.auth.getUser();
     if (userErr || !user) return json({ error: "Unauthorized" }, 401);
+    const sandboxMode = isSandboxEmail(user.email);
 
     const body = await req.json().catch(() => ({}));
     const merchantId = body?.merchant_id as string | undefined;
@@ -228,11 +235,20 @@ Deno.serve(async (req) => {
         .upsert({
           org_id: merchant.org_id,
           merchant_id: merchant.id,
-          whatsapp_phone_number_id: resolvedPhoneId,
-          whatsapp_waba_id: resolvedWabaId,
+          whatsapp_is_sandbox: sandboxMode,
+          whatsapp_phone_number_id: sandboxMode ? null : resolvedPhoneId,
+          whatsapp_waba_id: sandboxMode ? null : resolvedWabaId,
+          meta_waba_id: sandboxMode ? null : resolvedWabaId,
+          meta_phone_number_id: sandboxMode ? null : resolvedPhoneId,
+          meta_access_token_last4: null,
+          meta_token_updated_at: null,
+          whatsapp_sandbox_phone_number_id: sandboxMode ? resolvedPhoneId : null,
+          whatsapp_sandbox_waba_id: sandboxMode ? resolvedWabaId : null,
+          whatsapp_sandbox_token_last4: null,
+          whatsapp_sandbox_token_updated_at: null,
           embedded_signup_status: "failed",
           embedded_signup_error: "Could not resolve WhatsApp business assets from embedded signup response",
-          embedded_signup_payload: discoveryPayload,
+          embedded_signup_payload: { ...discoveryPayload, mode: sandboxMode ? "sandbox" : "production" },
         }, { onConflict: "merchant_id" });
       return json({
         ok: false,
@@ -248,7 +264,7 @@ Deno.serve(async (req) => {
       .from("merchants")
       .update({
         whatsapp_access_token: accessToken,
-        whatsapp_phone_number_id: resolvedPhoneId,
+        whatsapp_phone_number_id: sandboxMode ? null : resolvedPhoneId,
         whatsapp_verify_token: defaultVerifyToken,
       })
       .eq("id", merchant.id);
@@ -265,12 +281,17 @@ Deno.serve(async (req) => {
       .upsert({
         org_id: merchant.org_id,
         merchant_id: merchant.id,
-        meta_waba_id: resolvedWabaId,
-        meta_phone_number_id: resolvedPhoneId,
-        meta_access_token_last4: tokenLast4,
-        meta_token_updated_at: now,
-        whatsapp_phone_number_id: resolvedPhoneId,
-        whatsapp_waba_id: resolvedWabaId,
+        whatsapp_is_sandbox: sandboxMode,
+        meta_waba_id: sandboxMode ? null : resolvedWabaId,
+        meta_phone_number_id: sandboxMode ? null : resolvedPhoneId,
+        meta_access_token_last4: sandboxMode ? null : tokenLast4,
+        meta_token_updated_at: sandboxMode ? null : now,
+        whatsapp_phone_number_id: sandboxMode ? null : resolvedPhoneId,
+        whatsapp_waba_id: sandboxMode ? null : resolvedWabaId,
+        whatsapp_sandbox_waba_id: sandboxMode ? resolvedWabaId : null,
+        whatsapp_sandbox_phone_number_id: sandboxMode ? resolvedPhoneId : null,
+        whatsapp_sandbox_token_last4: sandboxMode ? tokenLast4 : null,
+        whatsapp_sandbox_token_updated_at: sandboxMode ? now : null,
         creds_status: "unknown",
         webhook_verify_status: "unknown",
         inbound_status: "unknown",
@@ -279,6 +300,7 @@ Deno.serve(async (req) => {
         embedded_signup_error: null,
         embedded_signup_payload: {
           graph_version: graphVersion,
+          mode: sandboxMode ? "sandbox" : "production",
           discovery: discoveryPayload,
         },
       }, { onConflict: "merchant_id" });
