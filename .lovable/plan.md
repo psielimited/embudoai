@@ -1,34 +1,21 @@
 
 
-# Deploy AI Sales Agent Migration and Edge Functions
+## Add Google Sign-In to Signup Page
 
-## 1. Database Migration
+### Problem
+The Signup page only offers email/password registration. Users arriving from the pricing flow have no way to sign up with Google, even though the OAuth flow naturally handles account creation.
 
-Run the migration file `supabase/migrations/20260220100000_ai_sales_agent.sql` using the database migration tool. This will apply any schema changes required for the AI sales agent feature.
+### What Changes
 
-## 2. Deploy Edge Functions
+**File: `src/pages/Signup.tsx`**
+- Import the `lovable` auth module and necessary UI components (Separator)
+- Add a "Continue with Google" button above the email form (matching the Login page pattern)
+- Include a visual divider ("Or continue with email") between the Google button and the form
+- Pass the selected `plan` parameter through Google OAuth so it's preserved after redirect:
+  - Set `redirect_uri` to `/auth/callback?plan={planParam}` so the plan is captured post-OAuth
+  - Store the plan in `localStorage` before initiating OAuth (same as the email flow)
 
-Deploy the following three edge functions with their latest code:
-
-- **ai-sales-agent** -- the core autonomous AI sales agent
-- **generate-ai-reply** -- compatibility shim that delegates to ai-sales-agent
-- **ingest-message** -- message ingestion with identity resolution and AI trigger
-
-## 3. Verify config.toml
-
-Confirm that `supabase/config.toml` has the correct `verify_jwt = false` entries for all three functions (already present based on current file).
-
-## Execution Order
-
-1. Apply the database migration first (schema must exist before functions reference it)
-2. Deploy all three edge functions in parallel
-3. Verify deployment by checking edge function logs
-
-## Technical Details
-
-- The migration file path: `supabase/migrations/20260220100000_ai_sales_agent.sql`
-- Edge function paths:
-  - `supabase/functions/ai-sales-agent/index.ts`
-  - `supabase/functions/generate-ai-reply/index.ts`
-  - `supabase/functions/ingest-message/index.ts`
-
+### Technical Details
+- Reuses the same `lovable.auth.signInWithOAuth("google", ...)` pattern from Login.tsx
+- The `AuthCallback` page already reads the `plan` query param and stores it in localStorage, so plan selection is preserved through the OAuth redirect
+- No backend or database changes needed — OAuth signup creates the user automatically
