@@ -7,7 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
+import { lovable } from "@/integrations/lovable";
 import { useAuth } from "@/hooks/useAuth";
 
 const knownPlans: Record<string, { label: string; trial: string }> = {
@@ -21,7 +23,7 @@ export default function Signup() {
   const [searchParams] = useSearchParams();
   const { user, loading } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
-
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -87,6 +89,35 @@ export default function Signup() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          <Button
+            variant="outline"
+            className="w-full mb-4"
+            onClick={async () => {
+              setIsGoogleLoading(true);
+              localStorage.setItem("embudex.signup_plan", planParam);
+              const { error } = await lovable.auth.signInWithOAuth("google", {
+                redirect_uri: `${window.location.origin}/auth/callback?plan=${encodeURIComponent(planParam)}`,
+              });
+              if (error) {
+                toast.error(error.message);
+                setIsGoogleLoading(false);
+              }
+            }}
+            disabled={isGoogleLoading}
+          >
+            {isGoogleLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+            Continue with Google
+          </Button>
+
+          <div className="relative mb-4">
+            <div className="absolute inset-0 flex items-center">
+              <Separator className="w-full" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-card px-2 text-muted-foreground">Or continue with email</span>
+            </div>
+          </div>
+
           <form className="grid gap-4 sm:grid-cols-2" onSubmit={handleSubmit}>
             <div className="sm:col-span-2 space-y-2">
               <Label htmlFor="email">Email</Label>
