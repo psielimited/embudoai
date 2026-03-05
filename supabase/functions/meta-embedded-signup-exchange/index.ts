@@ -26,12 +26,6 @@ function truncate(value: unknown, max = 500) {
   return raw.slice(0, max);
 }
 
-function isSandboxEmail(email: string | null | undefined) {
-  const normalized = email?.trim().toLowerCase();
-  if (!normalized) return false;
-  return normalized.endsWith("@yopmail.com");
-}
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
@@ -57,7 +51,7 @@ Deno.serve(async (req) => {
       error: userErr,
     } = await userClient.auth.getUser();
     if (userErr || !user) return json({ error: "Unauthorized" }, 401);
-    const sandboxMode = isSandboxEmail(user.email);
+    const sandboxMode = false;
 
     const body = await req.json().catch(() => ({}));
     const merchantId = body?.merchant_id as string | undefined;

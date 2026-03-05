@@ -1,7 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { isSandboxEmail } from "@/lib/sandbox";
 
 interface AuthContextValue {
   user: User | null;
@@ -59,7 +58,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         session,
         email,
-        isSandbox: isSandboxEmail(email),
+        isSandbox: false,
         loading,
         signIn: async (email: string, password: string) => {
           const { error } = await supabase.auth.signInWithPassword({ email, password });

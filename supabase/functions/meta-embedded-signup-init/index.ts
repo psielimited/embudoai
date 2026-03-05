@@ -17,12 +17,6 @@ function randomState() {
   return crypto.randomUUID().replace(/-/g, "") + crypto.randomUUID().replace(/-/g, "");
 }
 
-function isSandboxEmail(email: string | null | undefined) {
-  const normalized = email?.trim().toLowerCase();
-  if (!normalized) return false;
-  return normalized.endsWith("@yopmail.com");
-}
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
@@ -70,7 +64,7 @@ Deno.serve(async (req) => {
       .upsert({
         org_id: merchant.org_id,
         merchant_id: merchant.id,
-        whatsapp_is_sandbox: isSandboxEmail(user.email),
+        whatsapp_is_sandbox: false,
       }, { onConflict: "merchant_id" });
 
     const state = randomState();
