@@ -7,6 +7,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { OnboardingProgress } from "@/components/OnboardingProgress";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -16,9 +26,11 @@ import { invalidateActiveOrgCache } from "@/lib/auth";
 export default function Onboarding() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isAbortDialogOpen, setIsAbortDialogOpen] = useState(false);
+  const [isAborting, setIsAborting] = useState(false);
   const [orgName, setOrgName] = useState("");
   const [merchantName, setMerchantName] = useState("");
   const [country, setCountry] = useState("Dominican Republic");
@@ -140,6 +152,19 @@ export default function Onboarding() {
       setIsSubmitting(false);
       return;
     }
+  };
+
+  const handleAbortAndLogout = async () => {
+    setIsAborting(true);
+    const { error } = await signOut();
+    if (error) {
+      toast.error(error.message || "Could not log out right now.");
+      setIsAborting(false);
+      return;
+    }
+    localStorage.removeItem("embudex.signup_plan");
+    toast.message("Onboarding aborted. You have been logged out.");
+    navigate("/login", { replace: true });
   };
 
   if (isLoading) {
@@ -264,11 +289,38 @@ export default function Onboarding() {
                   {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                   Continue
                 </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="ml-2 text-muted-foreground"
+                  onClick={() => setIsAbortDialogOpen(true)}
+                  disabled={isSubmitting || isAborting}
+                >
+                  Abort and log out
+                </Button>
               </div>
             </form>
           </CardContent>
         </Card>
       </div>
+
+      <AlertDialog open={isAbortDialogOpen} onOpenChange={setIsAbortDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Abort onboarding and log out?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This stops setup for now and signs you out. You can sign back in and resume onboarding later.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isAborting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleAbortAndLogout} disabled={isAborting}>
+              {isAborting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Abort and log out
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
