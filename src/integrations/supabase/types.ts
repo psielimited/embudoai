@@ -1225,6 +1225,7 @@ export type Database = {
       }
       merchant_settings: {
         Row: {
+          code_verification_status: string | null
           connectivity_inbound_last_checked_at: string | null
           connectivity_inbound_marker: string | null
           connectivity_inbound_ok: boolean
@@ -1258,7 +1259,13 @@ export type Database = {
           meta_waba_id: string | null
           onboarding_step: number
           org_id: string
+          otp_requested_at: string | null
+          otp_verified_at: string | null
           outbound_status: string
+          phone_registration_status: string
+          registration_checked_at: string | null
+          registration_error: string | null
+          registration_last_attempt_at: string | null
           step_progress: Json | null
           template_approval_state: string | null
           template_approved_count: number
@@ -1268,6 +1275,8 @@ export type Database = {
           templates_summary: Json | null
           token_expires_at: string | null
           token_last_checked_at: string | null
+          token_scope_status: string
+          token_scopes: Json | null
           token_valid: boolean
           updated_at: string
           validation_results: Json
@@ -1287,6 +1296,7 @@ export type Database = {
           whatsapp_waba_id: string | null
         }
         Insert: {
+          code_verification_status?: string | null
           connectivity_inbound_last_checked_at?: string | null
           connectivity_inbound_marker?: string | null
           connectivity_inbound_ok?: boolean
@@ -1320,7 +1330,13 @@ export type Database = {
           meta_waba_id?: string | null
           onboarding_step?: number
           org_id: string
+          otp_requested_at?: string | null
+          otp_verified_at?: string | null
           outbound_status?: string
+          phone_registration_status?: string
+          registration_checked_at?: string | null
+          registration_error?: string | null
+          registration_last_attempt_at?: string | null
           step_progress?: Json | null
           template_approval_state?: string | null
           template_approved_count?: number
@@ -1330,6 +1346,8 @@ export type Database = {
           templates_summary?: Json | null
           token_expires_at?: string | null
           token_last_checked_at?: string | null
+          token_scope_status?: string
+          token_scopes?: Json | null
           token_valid?: boolean
           updated_at?: string
           validation_results?: Json
@@ -1349,6 +1367,7 @@ export type Database = {
           whatsapp_waba_id?: string | null
         }
         Update: {
+          code_verification_status?: string | null
           connectivity_inbound_last_checked_at?: string | null
           connectivity_inbound_marker?: string | null
           connectivity_inbound_ok?: boolean
@@ -1382,7 +1401,13 @@ export type Database = {
           meta_waba_id?: string | null
           onboarding_step?: number
           org_id?: string
+          otp_requested_at?: string | null
+          otp_verified_at?: string | null
           outbound_status?: string
+          phone_registration_status?: string
+          registration_checked_at?: string | null
+          registration_error?: string | null
+          registration_last_attempt_at?: string | null
           step_progress?: Json | null
           template_approval_state?: string | null
           template_approved_count?: number
@@ -1392,6 +1417,8 @@ export type Database = {
           templates_summary?: Json | null
           token_expires_at?: string | null
           token_last_checked_at?: string | null
+          token_scope_status?: string
+          token_scopes?: Json | null
           token_valid?: boolean
           updated_at?: string
           validation_results?: Json
