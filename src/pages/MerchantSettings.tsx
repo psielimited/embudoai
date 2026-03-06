@@ -93,6 +93,30 @@ function parseSandboxErrorPayload(raw: string | null | undefined) {
   }
 }
 
+function toStringOrNull(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
+}
+
+function registrationBadge(status: string) {
+  const normalized = status.trim().toLowerCase();
+  if (normalized === "registered") {
+    return <Badge className="bg-green-500/10 text-green-700 border-green-500/20">Registered</Badge>;
+  }
+  if (normalized === "verified_not_registered" || normalized === "otp_verified") {
+    return <Badge className="bg-amber-500/10 text-amber-700 border-amber-500/20">Verified - Pending Register</Badge>;
+  }
+  if (normalized === "otp_requested") {
+    return <Badge variant="outline">OTP Requested</Badge>;
+  }
+  if (normalized === "registration_failed" || normalized === "otp_verification_failed" || normalized === "otp_request_failed") {
+    return <Badge className="bg-red-500/10 text-red-700 border-red-500/20">Action required</Badge>;
+  }
+  if (normalized === "not_verified" || normalized === "expired") {
+    return <Badge variant="outline">Not Verified</Badge>;
+  }
+  return <Badge variant="outline">Unknown</Badge>;
+}
+
 type TemplateRow = {
   name: string;
   status: string;
@@ -123,6 +147,10 @@ export default function MerchantSettings() {
   const isWizardRoute = location.pathname.startsWith("/onboarding/whatsapp/");
   const [testRecipient, setTestRecipient] = useState("");
   const [embeddedStatus, setEmbeddedStatus] = useState<EmbeddedStatus>("idle");
+  const [otpCode, setOtpCode] = useState("");
+  const [registrationPin, setRegistrationPin] = useState("");
+  const [otpLanguage, setOtpLanguage] = useState("en_US");
+  const [otpMethod, setOtpMethod] = useState<"SMS" | "VOICE">("SMS");
 
   const { data: merchant, isLoading: isLoadingMerchant } = useMerchant(merchantId!);
   const {
@@ -133,10 +161,18 @@ export default function MerchantSettings() {
     validateCredentials,
     sendTestOutbound,
     checkInboundMarker,
+    getRegistrationStatus,
+    requestRegistrationCode,
+    verifyRegistrationCode,
+    registerPhoneNumber,
     isRefreshing,
     isValidating,
     isSendingTest,
     isCheckingInbound,
+    isCheckingRegistration,
+    isRequestingRegistrationCode,
+    isVerifyingRegistrationCode,
+    isRegisteringPhoneNumber,
   } = useMerchantSettings(merchantId);
 
   const credsStatus = normalizeStatus(
@@ -193,12 +229,22 @@ export default function MerchantSettings() {
   const inboundErrorPayload = parseSandboxErrorPayload(settings?.inbound_error);
   const outboundSandboxBlocked = outboundStatus === "blocked_sandbox" || outboundErrorPayload?.sandbox_blocked === true;
   const inboundSandboxBlocked = inboundStatus === "blocked_sandbox" || inboundErrorPayload?.sandbox_blocked === true;
+  const settingsRecord = toRecord(settings);
+  const codeVerificationStatus = toStringOrNull(settingsRecord?.code_verification_status) ?? "UNKNOWN";
+  const phoneRegistrationStatus = toStringOrNull(settingsRecord?.phone_registration_status) ?? "unknown";
+  const registrationError = toStringOrNull(settingsRecord?.registration_error);
+  const registrationCheckedAt = toStringOrNull(settingsRecord?.registration_checked_at);
+  const otpRequestedAt = toStringOrNull(settingsRecord?.otp_requested_at);
+  const otpVerifiedAt = toStringOrNull(settingsRecord?.otp_verified_at);
+  const tokenScopeStatus = toStringOrNull(settingsRecord?.token_scope_status) ?? "unknown";
 
+  const registrationReady = isSandbox || phoneRegistrationStatus === "registered";
   const merchantSetupComplete = Boolean(
     (credsStatus === "pass" || settings?.credentials_valid)
-    && (webhookStatus === "pass" || settings?.webhook_challenge_valid)
-    && (outboundStatus === "pass" || outboundStatus === "blocked_sandbox" || settings?.connectivity_outbound_ok)
-    && (inboundStatus === "pass" || inboundStatus === "blocked_sandbox" || settings?.connectivity_inbound_ok),
+      && (webhookStatus === "pass" || settings?.webhook_challenge_valid)
+      && (outboundStatus === "pass" || outboundStatus === "blocked_sandbox" || settings?.connectivity_outbound_ok)
+      && (inboundStatus === "pass" || inboundStatus === "blocked_sandbox" || settings?.connectivity_inbound_ok)
+      && registrationReady,
   );
   const embeddedStepLabel: Record<EmbeddedStatus, string> = {
     idle: "Ready to connect",
@@ -256,6 +302,52 @@ export default function MerchantSettings() {
       }
     } catch (invokeError) {
       toast.error(invokeError instanceof Error ? invokeError.message : "Inbound marker check failed");
+    }
+  };
+
+  const onGetRegistrationStatus = async () => {
+    try {
+      await getRegistrationStatus();
+      toast.success("Registration status refreshed");
+    } catch (invokeError) {
+      toast.error(invokeError instanceof Error ? invokeError.message : "Failed to refresh registration status");
+    }
+  };
+
+  const onRequestOtp = async () => {
+    try {
+      await requestRegistrationCode({ code_method: otpMethod, language: otpLanguage.trim() || "en_US" });
+      toast.success(`OTP requested via ${otpMethod}`);
+    } catch (invokeError) {
+      toast.error(invokeError instanceof Error ? invokeError.message : "Failed to request OTP");
+    }
+  };
+
+  const onVerifyOtp = async () => {
+    const code = otpCode.trim();
+    if (!/^\d{4,8}$/.test(code)) {
+      toast.error("Enter a valid OTP code (4-8 digits).");
+      return;
+    }
+    try {
+      await verifyRegistrationCode(code);
+      toast.success("OTP verified.");
+    } catch (invokeError) {
+      toast.error(invokeError instanceof Error ? invokeError.message : "Failed to verify OTP");
+    }
+  };
+
+  const onRegisterPhone = async () => {
+    const pin = registrationPin.trim();
+    if (!/^\d{6}$/.test(pin)) {
+      toast.error("PIN must be exactly 6 digits.");
+      return;
+    }
+    try {
+      await registerPhoneNumber(pin);
+      toast.success("Phone registered successfully.");
+    } catch (invokeError) {
+      toast.error(invokeError instanceof Error ? invokeError.message : "Failed to register phone");
     }
   };
 
@@ -394,7 +486,7 @@ export default function MerchantSettings() {
       {isSandbox && (
         <Alert>
           <AlertTriangle className="h-4 w-4 text-amber-600" />
-          <AlertTitle>Sandbox Mode (email-gated)</AlertTitle>
+          <AlertTitle>Sandbox Mode</AlertTitle>
           <AlertDescription>
             This account is running Meta sandbox onboarding. Some outbound/inbound checks can be blocked by Meta constraints.
           </AlertDescription>
@@ -408,6 +500,16 @@ export default function MerchantSettings() {
           <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
             <span>All checks passed. You can proceed to the dashboard.</span>
             <Button size="sm" onClick={() => navigate("/dashboard")}>Open Dashboard</Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {!isSandbox && isWizardRoute && !merchantSetupComplete && (
+        <Alert>
+          <AlertTriangle className="h-4 w-4 text-amber-600" />
+          <AlertTitle>Phone registration required</AlertTitle>
+          <AlertDescription>
+            Complete OTP verification and phone registration before finishing onboarding.
           </AlertDescription>
         </Alert>
       )}
@@ -494,6 +596,151 @@ export default function MerchantSettings() {
             </CardContent>
           </Card>
         </div>
+      </section>
+
+      <Separator />
+
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-base font-semibold">Phone Registration</h2>
+          <p className="text-sm text-muted-foreground">
+            Complete OTP verification and registration for the connected phone number.
+          </p>
+        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Registration Status</CardTitle>
+            <CardDescription>
+              Last checked: {formatTs(registrationCheckedAt)}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {isSandbox && (
+              <Alert>
+                <AlertTriangle className="h-4 w-4 text-amber-600" />
+                <AlertTitle>Registration unavailable in sandbox</AlertTitle>
+                <AlertDescription>
+                  OTP verification and phone registration are only supported for production phone numbers.
+                </AlertDescription>
+              </Alert>
+            )}
+            <div className="flex flex-wrap items-center gap-2">
+              {registrationBadge(phoneRegistrationStatus)}
+              <Badge variant="outline">Code verification: {codeVerificationStatus}</Badge>
+              <Badge variant="outline">Token scopes: {tokenScopeStatus}</Badge>
+            </div>
+            {registrationError && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Registration error</AlertTitle>
+                <AlertDescription>{registrationError}</AlertDescription>
+              </Alert>
+            )}
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-md border p-3">
+                <p className="text-xs text-muted-foreground">OTP Requested At</p>
+                <p className="text-sm">{formatTs(otpRequestedAt)}</p>
+              </div>
+              <div className="rounded-md border p-3">
+                <p className="text-xs text-muted-foreground">OTP Verified At</p>
+                <p className="text-sm">{formatTs(otpVerifiedAt)}</p>
+              </div>
+              <div className="rounded-md border p-3">
+                <p className="text-xs text-muted-foreground">Phone Number ID</p>
+                <p className="text-sm font-mono">
+                  {maskTail(
+                    isSandbox
+                      ? settings?.whatsapp_sandbox_phone_number_id
+                      : (settings?.whatsapp_phone_number_id ?? settings?.meta_phone_number_id),
+                  )}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                onClick={() => void onGetRegistrationStatus()}
+                disabled={isSandbox || isCheckingRegistration}
+              >
+                {isCheckingRegistration ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                Refresh registration status
+              </Button>
+            </div>
+
+            <div className="space-y-2 rounded-md border p-3">
+              <p className="text-sm font-medium">1) Request OTP</p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={otpMethod === "SMS" ? "default" : "outline"}
+                  onClick={() => setOtpMethod("SMS")}
+                >
+                  SMS
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={otpMethod === "VOICE" ? "default" : "outline"}
+                  onClick={() => setOtpMethod("VOICE")}
+                >
+                  VOICE
+                </Button>
+                <Input
+                  className="w-[140px]"
+                  value={otpLanguage}
+                  onChange={(event) => setOtpLanguage(event.target.value)}
+                  placeholder="en_US"
+                />
+                <Button
+                  variant="outline"
+                  onClick={() => void onRequestOtp()}
+                  disabled={isSandbox || isRequestingRegistrationCode}
+                >
+                  {isRequestingRegistrationCode ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                  Request OTP
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-2 rounded-md border p-3">
+              <p className="text-sm font-medium">2) Verify OTP</p>
+              <div className="flex flex-wrap gap-2">
+                <Input
+                  className="w-[180px]"
+                  value={otpCode}
+                  onChange={(event) => setOtpCode(event.target.value)}
+                  placeholder="OTP code"
+                />
+                <Button
+                  variant="outline"
+                  onClick={() => void onVerifyOtp()}
+                  disabled={isSandbox || isVerifyingRegistrationCode}
+                >
+                  {isVerifyingRegistrationCode ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                  Verify code
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-2 rounded-md border p-3">
+              <p className="text-sm font-medium">3) Register Phone</p>
+              <div className="flex flex-wrap gap-2">
+                <Input
+                  className="w-[180px]"
+                  value={registrationPin}
+                  onChange={(event) => setRegistrationPin(event.target.value)}
+                  placeholder="6-digit PIN"
+                />
+                <Button onClick={() => void onRegisterPhone()} disabled={isSandbox || isRegisteringPhoneNumber}>
+                  {isRegisteringPhoneNumber ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                  Register
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </section>
 
       <Separator />

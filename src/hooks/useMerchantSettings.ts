@@ -8,13 +8,21 @@ type MerchantOnboardingAction =
   | "refresh_status"
   | "validate_credentials"
   | "connectivity_test_outbound"
-  | "check_inbound_marker";
+  | "check_inbound_marker"
+  | "get_registration_status"
+  | "request_code"
+  | "verify_code"
+  | "register";
 
 type OnboardingInvokePayload = {
   merchant_id: string;
   action: MerchantOnboardingAction;
   test_to?: string;
   expected_from?: string;
+  code_method?: "SMS" | "VOICE";
+  language?: string;
+  code?: string;
+  pin?: string;
 };
 
 type OnboardingInvokeResponse = {
@@ -95,6 +103,46 @@ export function useMerchantSettings(merchantId?: string) {
     onSuccess: invalidate,
   });
 
+  const registrationStatusMutation = useMutation({
+    mutationFn: async () =>
+      invokeOnboardingAction({
+        merchant_id: merchantId!,
+        action: "get_registration_status",
+      }),
+    onSuccess: invalidate,
+  });
+
+  const requestCodeMutation = useMutation({
+    mutationFn: async (params?: { code_method?: "SMS" | "VOICE"; language?: string }) =>
+      invokeOnboardingAction({
+        merchant_id: merchantId!,
+        action: "request_code",
+        ...(params?.code_method ? { code_method: params.code_method } : {}),
+        ...(params?.language ? { language: params.language } : {}),
+      }),
+    onSuccess: invalidate,
+  });
+
+  const verifyCodeMutation = useMutation({
+    mutationFn: async (code: string) =>
+      invokeOnboardingAction({
+        merchant_id: merchantId!,
+        action: "verify_code",
+        code,
+      }),
+    onSuccess: invalidate,
+  });
+
+  const registerMutation = useMutation({
+    mutationFn: async (pin: string) =>
+      invokeOnboardingAction({
+        merchant_id: merchantId!,
+        action: "register",
+        pin,
+      }),
+    onSuccess: invalidate,
+  });
+
   return {
     ...query,
     settings: query.data ?? null,
@@ -102,9 +150,18 @@ export function useMerchantSettings(merchantId?: string) {
     validateCredentials: () => validateMutation.mutateAsync(),
     sendTestOutbound: (testTo?: string) => outboundMutation.mutateAsync(testTo),
     checkInboundMarker: (expectedFrom?: string) => inboundMutation.mutateAsync(expectedFrom),
+    getRegistrationStatus: () => registrationStatusMutation.mutateAsync(),
+    requestRegistrationCode: (params?: { code_method?: "SMS" | "VOICE"; language?: string }) =>
+      requestCodeMutation.mutateAsync(params),
+    verifyRegistrationCode: (code: string) => verifyCodeMutation.mutateAsync(code),
+    registerPhoneNumber: (pin: string) => registerMutation.mutateAsync(pin),
     isRefreshing: refreshMutation.isPending,
     isValidating: validateMutation.isPending,
     isSendingTest: outboundMutation.isPending,
     isCheckingInbound: inboundMutation.isPending,
+    isCheckingRegistration: registrationStatusMutation.isPending,
+    isRequestingRegistrationCode: requestCodeMutation.isPending,
+    isVerifyingRegistrationCode: verifyCodeMutation.isPending,
+    isRegisteringPhoneNumber: registerMutation.isPending,
   };
 }

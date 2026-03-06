@@ -5,6 +5,12 @@ import {
   resolveOnboardingPhoneNumberId,
 } from "./sandbox.ts";
 
+const GRAPH_VERSION = "v24.0";
+const REQUIRED_TOKEN_SCOPES = [
+  "whatsapp_business_messaging",
+  "whatsapp_business_management",
+] as const;
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -19,7 +25,7 @@ function json(body: unknown, status = 200) {
 }
 
 async function graphGet(path: string, accessToken: string) {
-  const res = await fetch(`https://graph.facebook.com/v24.0/${path}`, {
+  const res = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${path}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
   const body = await res.json().catch(() => ({}));
@@ -27,7 +33,7 @@ async function graphGet(path: string, accessToken: string) {
 }
 
 async function graphPost(path: string, accessToken: string, payload: unknown) {
-  const res = await fetch(`https://graph.facebook.com/v24.0/${path}`, {
+  const res = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${path}`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -50,6 +56,87 @@ function parseTemplateCounts(data: any[]) {
   return counts;
 }
 
+function graphError(payload: unknown, fallback = "Meta Graph request failed") {
+  const raw = payload && typeof payload === "object"
+    ? ((payload as Record<string, unknown>).error ?? payload)
+    : payload;
+  const msg = JSON.stringify(raw ?? fallback);
+  return msg.slice(0, 500);
+}
+
+function deriveRegistrationStatus(
+  codeVerificationStatus: string | null,
+  existingStatus: string | null | undefined,
+) {
+  const normalized = (codeVerificationStatus ?? "").toUpperCase();
+  if (normalized === "VERIFIED") {
+    return existingStatus === "registered" ? "registered" : "verified_not_registered";
+  }
+  if (normalized === "NOT_VERIFIED") return "not_verified";
+  if (normalized === "EXPIRED") return "expired";
+  return existingStatus ?? "unknown";
+}
+
+async function checkTokenScopes(accessToken: string) {
+  const appId = Deno.env.get("META_APP_ID");
+  const appSecret = Deno.env.get("META_APP_SECRET");
+  if (!appId || !appSecret) {
+    return {
+      ok: false,
+      status: 500,
+      error: "Missing META_APP_ID or META_APP_SECRET on server. Cannot validate token scopes.",
+      scopes: [] as string[],
+      missingScopes: [...REQUIRED_TOKEN_SCOPES],
+      isValid: false,
+    };
+  }
+
+  const url = new URL(`https://graph.facebook.com/${GRAPH_VERSION}/debug_token`);
+  url.searchParams.set("input_token", accessToken);
+  url.searchParams.set("access_token", `${appId}|${appSecret}`);
+
+  const res = await fetch(url.toString());
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    return {
+      ok: false,
+      status: 403,
+      error: graphError(body, "Failed to inspect token scopes"),
+      scopes: [] as string[],
+      missingScopes: [...REQUIRED_TOKEN_SCOPES],
+      isValid: false,
+    };
+  }
+
+  const tokenData = body?.data ?? {};
+  const scopes = Array.isArray(tokenData?.scopes)
+    ? tokenData.scopes.filter((scope: unknown): scope is string => typeof scope === "string")
+    : [];
+  const isValid = tokenData?.is_valid === true;
+  const missingScopes = REQUIRED_TOKEN_SCOPES.filter((scope) => !scopes.includes(scope));
+  if (!isValid || missingScopes.length > 0) {
+    return {
+      ok: false,
+      status: 403,
+      error: !isValid
+        ? "Access token is invalid or expired. Reconnect WhatsApp with Meta Embedded Signup."
+        : `Access token missing required scopes: ${missingScopes.join(", ")}.`,
+      scopes,
+      missingScopes,
+      isValid,
+    };
+  }
+
+  return {
+    ok: true,
+    status: 200,
+    error: null,
+    scopes,
+    missingScopes: [] as string[],
+    isValid,
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
@@ -61,6 +148,10 @@ Deno.serve(async (req) => {
       | "validate_credentials"
       | "connectivity_test_outbound"
       | "check_inbound_marker"
+      | "get_registration_status"
+      | "request_code"
+      | "verify_code"
+      | "register"
       | "refresh_status"
       | undefined;
 
@@ -86,7 +177,7 @@ Deno.serve(async (req) => {
 
     const { data: currentSettings } = await supabase
       .from("merchant_settings")
-      .select("meta_waba_id, whatsapp_waba_id, whatsapp_business_id, whatsapp_phone_number_id, templates_summary, onboarding_step, whatsapp_is_sandbox, whatsapp_sandbox_waba_id, whatsapp_sandbox_phone_number_id")
+      .select("meta_waba_id, whatsapp_waba_id, whatsapp_business_id, whatsapp_phone_number_id, templates_summary, onboarding_step, whatsapp_is_sandbox, whatsapp_sandbox_waba_id, whatsapp_sandbox_phone_number_id, code_verification_status, phone_registration_status, otp_requested_at, otp_verified_at")
       .eq("merchant_id", merchant.id)
       .maybeSingle();
 
@@ -125,6 +216,22 @@ Deno.serve(async (req) => {
       return data;
     };
 
+    const registrationPrereqError = () => {
+      if (isSandbox) {
+        return {
+          status: 400,
+          error: "Phone registration flow is only available for production numbers.",
+        };
+      }
+      if (!resolvedPhoneNumberId || !merchant.whatsapp_access_token) {
+        return {
+          status: 400,
+          error: "Missing merchant WhatsApp credentials. Connect WhatsApp first.",
+        };
+      }
+      return null;
+    };
+
     if (action === "validate_credentials") {
       const verifyToken = merchant.whatsapp_verify_token ?? (Deno.env.get("META_WEBHOOK_VERIFY_TOKEN") ?? null);
       if (!resolvedPhoneNumberId || !merchant.whatsapp_access_token || !verifyToken) {
@@ -135,12 +242,19 @@ Deno.serve(async (req) => {
       }
 
       const tokenCheck = await graphGet(
-        `${resolvedPhoneNumberId}?fields=id,display_phone_number,verified_name`,
+        `${resolvedPhoneNumberId}?fields=id,display_phone_number,verified_name,code_verification_status`,
         merchant.whatsapp_access_token,
       );
 
       const tokenValid = tokenCheck.ok;
-      const tokenError = tokenValid ? null : JSON.stringify(tokenCheck.body?.error ?? tokenCheck.body).slice(0, 500);
+      const tokenError = tokenValid ? null : graphError(tokenCheck.body);
+      const codeVerificationStatus = tokenValid
+        ? String(tokenCheck.body?.code_verification_status ?? "UNKNOWN").toUpperCase()
+        : null;
+      const phoneRegistrationStatus = deriveRegistrationStatus(
+        codeVerificationStatus,
+        currentSettings?.phone_registration_status,
+      );
 
       const challenge = "embudex_webhook_test_challenge";
       const webhookUrl = `${supabaseUrl}/functions/v1/whatsapp-webhook?hub.mode=subscribe&hub.verify_token=${encodeURIComponent(verifyToken)}&hub.challenge=${challenge}`;
@@ -221,6 +335,10 @@ Deno.serve(async (req) => {
         whatsapp_is_sandbox: isSandbox,
         onboarding_step: tokenValid && webhookValid ? 2 : 1,
         whatsapp_business_id: currentSettings?.whatsapp_business_id ?? null,
+        code_verification_status: codeVerificationStatus,
+        phone_registration_status: phoneRegistrationStatus,
+        registration_checked_at: now,
+        registration_error: tokenError,
         ...modeSpecificFields,
         credentials_valid: tokenValid,
         credentials_last_checked_at: now,
@@ -246,6 +364,8 @@ Deno.serve(async (req) => {
           checked_at: now,
           token_valid: tokenValid,
           webhook_challenge_valid: webhookValid,
+          code_verification_status: codeVerificationStatus,
+          phone_registration_status: phoneRegistrationStatus,
           error: tokenError ?? (webhookValid ? null : webhookBody?.slice(0, 500)),
         },
         step_progress: {
@@ -266,8 +386,299 @@ Deno.serve(async (req) => {
         ok: tokenValid && webhookValid,
         token_valid: tokenValid,
         webhook_challenge_valid: webhookValid,
+        code_verification_status: codeVerificationStatus,
+        phone_registration_status: phoneRegistrationStatus,
         settings,
       });
+    }
+
+    if (action === "get_registration_status") {
+      const prereq = registrationPrereqError();
+      if (prereq) return json({ ok: false, error: prereq.error }, prereq.status);
+
+      const statusRes = await graphGet(
+        `${resolvedPhoneNumberId}?fields=id,display_phone_number,verified_name,code_verification_status`,
+        merchant.whatsapp_access_token!,
+      );
+
+      if (!statusRes.ok) {
+        const error = graphError(statusRes.body);
+        const settings = await upsertSettings({
+          registration_checked_at: now,
+          registration_error: error,
+          last_validation_payload: {
+            action: "get_registration_status",
+            mode: "production",
+            checked_at: now,
+            error,
+          },
+        });
+        return json({ ok: false, error, details: statusRes.body, settings }, 400);
+      }
+
+      const codeVerificationStatus = String(statusRes.body?.code_verification_status ?? "UNKNOWN").toUpperCase();
+      const phoneRegistrationStatus = deriveRegistrationStatus(
+        codeVerificationStatus,
+        currentSettings?.phone_registration_status,
+      );
+
+      const settings = await upsertSettings({
+        code_verification_status: codeVerificationStatus,
+        phone_registration_status: phoneRegistrationStatus,
+        registration_checked_at: now,
+        registration_error: null,
+        last_validation_payload: {
+          action: "get_registration_status",
+          mode: "production",
+          checked_at: now,
+          code_verification_status: codeVerificationStatus,
+          phone_registration_status: phoneRegistrationStatus,
+        },
+      });
+
+      return json({
+        ok: true,
+        code_verification_status: codeVerificationStatus,
+        phone_registration_status: phoneRegistrationStatus,
+        phone_number: {
+          id: statusRes.body?.id ?? null,
+          display_phone_number: statusRes.body?.display_phone_number ?? null,
+          verified_name: statusRes.body?.verified_name ?? null,
+        },
+        settings,
+      });
+    }
+
+    if (action === "request_code") {
+      const prereq = registrationPrereqError();
+      if (prereq) return json({ ok: false, error: prereq.error }, prereq.status);
+
+      const scopeCheck = await checkTokenScopes(merchant.whatsapp_access_token!);
+      if (!scopeCheck.ok) {
+        const settings = await upsertSettings({
+          token_scope_status: "fail",
+          token_scopes: scopeCheck.scopes,
+          registration_last_attempt_at: now,
+          registration_error: scopeCheck.error,
+          last_validation_payload: {
+            action: "request_code",
+            mode: "production",
+            checked_at: now,
+            scope_check: "fail",
+            missing_scopes: scopeCheck.missingScopes,
+            token_valid: scopeCheck.isValid,
+            error: scopeCheck.error,
+          },
+        });
+        return json({
+          ok: false,
+          error: scopeCheck.error,
+          missing_scopes: scopeCheck.missingScopes,
+          scopes: scopeCheck.scopes,
+          settings,
+        }, scopeCheck.status);
+      }
+
+      const codeMethodRaw = String(body?.code_method ?? "SMS").toUpperCase();
+      const codeMethod = codeMethodRaw === "VOICE" ? "VOICE" : "SMS";
+      const language = typeof body?.language === "string" && body.language.trim().length > 0
+        ? body.language.trim()
+        : "en_US";
+
+      const requestRes = await graphPost(
+        `${resolvedPhoneNumberId}/request_code`,
+        merchant.whatsapp_access_token!,
+        { code_method: codeMethod, language },
+      );
+      const reqError = requestRes.ok ? null : graphError(requestRes.body);
+      const settings = await upsertSettings({
+        token_scope_status: "pass",
+        token_scopes: scopeCheck.scopes,
+        phone_registration_status: requestRes.ok ? "otp_requested" : "otp_request_failed",
+        otp_requested_at: requestRes.ok ? now : currentSettings?.otp_requested_at ?? null,
+        registration_last_attempt_at: now,
+        registration_error: reqError,
+        registration_checked_at: now,
+        last_validation_payload: {
+          action: "request_code",
+          mode: "production",
+          checked_at: now,
+          ok: requestRes.ok,
+          code_method: codeMethod,
+          language,
+          error: reqError,
+        },
+      });
+
+      return json({
+        ok: requestRes.ok,
+        error: reqError,
+        response: requestRes.body,
+        settings,
+      }, requestRes.ok ? 200 : 400);
+    }
+
+    if (action === "verify_code") {
+      const prereq = registrationPrereqError();
+      if (prereq) return json({ ok: false, error: prereq.error }, prereq.status);
+
+      const code = typeof body?.code === "string" ? body.code.trim() : "";
+      if (!/^\d{4,8}$/.test(code)) {
+        return json({ ok: false, error: "code is required and must be 4-8 digits." }, 400);
+      }
+
+      const scopeCheck = await checkTokenScopes(merchant.whatsapp_access_token!);
+      if (!scopeCheck.ok) {
+        const settings = await upsertSettings({
+          token_scope_status: "fail",
+          token_scopes: scopeCheck.scopes,
+          registration_last_attempt_at: now,
+          registration_error: scopeCheck.error,
+          last_validation_payload: {
+            action: "verify_code",
+            mode: "production",
+            checked_at: now,
+            scope_check: "fail",
+            missing_scopes: scopeCheck.missingScopes,
+            token_valid: scopeCheck.isValid,
+            error: scopeCheck.error,
+          },
+        });
+        return json({
+          ok: false,
+          error: scopeCheck.error,
+          missing_scopes: scopeCheck.missingScopes,
+          scopes: scopeCheck.scopes,
+          settings,
+        }, scopeCheck.status);
+      }
+
+      const verifyRes = await graphPost(
+        `${resolvedPhoneNumberId}/verify_code`,
+        merchant.whatsapp_access_token!,
+        { code },
+      );
+      const verifyError = verifyRes.ok ? null : graphError(verifyRes.body);
+      let codeVerificationStatus = verifyRes.ok ? "VERIFIED" : (currentSettings?.code_verification_status ?? null);
+      if (verifyRes.ok) {
+        const statusRes = await graphGet(
+          `${resolvedPhoneNumberId}?fields=code_verification_status`,
+          merchant.whatsapp_access_token!,
+        );
+        if (statusRes.ok) {
+          codeVerificationStatus = String(statusRes.body?.code_verification_status ?? "VERIFIED").toUpperCase();
+        }
+      }
+      const phoneRegistrationStatus = verifyRes.ok
+        ? "otp_verified"
+        : "otp_verification_failed";
+      const settings = await upsertSettings({
+        token_scope_status: "pass",
+        token_scopes: scopeCheck.scopes,
+        code_verification_status: codeVerificationStatus,
+        phone_registration_status: verifyRes.ok
+          ? (currentSettings?.phone_registration_status === "registered" ? "registered" : phoneRegistrationStatus)
+          : phoneRegistrationStatus,
+        otp_verified_at: verifyRes.ok ? now : currentSettings?.otp_verified_at ?? null,
+        registration_last_attempt_at: now,
+        registration_checked_at: now,
+        registration_error: verifyError,
+        last_validation_payload: {
+          action: "verify_code",
+          mode: "production",
+          checked_at: now,
+          ok: verifyRes.ok,
+          code_verification_status: codeVerificationStatus,
+          error: verifyError,
+        },
+      });
+
+      return json({
+        ok: verifyRes.ok,
+        error: verifyError,
+        code_verification_status: codeVerificationStatus,
+        response: verifyRes.body,
+        settings,
+      }, verifyRes.ok ? 200 : 400);
+    }
+
+    if (action === "register") {
+      const prereq = registrationPrereqError();
+      if (prereq) return json({ ok: false, error: prereq.error }, prereq.status);
+
+      const pin = typeof body?.pin === "string" ? body.pin.trim() : "";
+      if (!/^\d{6}$/.test(pin)) {
+        return json({ ok: false, error: "pin is required and must be 6 digits." }, 400);
+      }
+
+      const scopeCheck = await checkTokenScopes(merchant.whatsapp_access_token!);
+      if (!scopeCheck.ok) {
+        const settings = await upsertSettings({
+          token_scope_status: "fail",
+          token_scopes: scopeCheck.scopes,
+          registration_last_attempt_at: now,
+          registration_error: scopeCheck.error,
+          last_validation_payload: {
+            action: "register",
+            mode: "production",
+            checked_at: now,
+            scope_check: "fail",
+            missing_scopes: scopeCheck.missingScopes,
+            token_valid: scopeCheck.isValid,
+            error: scopeCheck.error,
+          },
+        });
+        return json({
+          ok: false,
+          error: scopeCheck.error,
+          missing_scopes: scopeCheck.missingScopes,
+          scopes: scopeCheck.scopes,
+          settings,
+        }, scopeCheck.status);
+      }
+
+      const registerRes = await graphPost(
+        `${resolvedPhoneNumberId}/register`,
+        merchant.whatsapp_access_token!,
+        { messaging_product: "whatsapp", pin },
+      );
+      const registerError = registerRes.ok ? null : graphError(registerRes.body);
+      let codeVerificationStatus = currentSettings?.code_verification_status ?? null;
+      if (registerRes.ok) {
+        const statusRes = await graphGet(
+          `${resolvedPhoneNumberId}?fields=code_verification_status`,
+          merchant.whatsapp_access_token!,
+        );
+        if (statusRes.ok) {
+          codeVerificationStatus = String(statusRes.body?.code_verification_status ?? "UNKNOWN").toUpperCase();
+        }
+      }
+      const settings = await upsertSettings({
+        token_scope_status: "pass",
+        token_scopes: scopeCheck.scopes,
+        code_verification_status: codeVerificationStatus,
+        phone_registration_status: registerRes.ok ? "registered" : "registration_failed",
+        registration_last_attempt_at: now,
+        registration_checked_at: now,
+        registration_error: registerError,
+        last_validation_payload: {
+          action: "register",
+          mode: "production",
+          checked_at: now,
+          ok: registerRes.ok,
+          code_verification_status: codeVerificationStatus,
+          error: registerError,
+        },
+      });
+
+      return json({
+        ok: registerRes.ok,
+        error: registerError,
+        code_verification_status: codeVerificationStatus,
+        phone_registration_status: registerRes.ok ? "registered" : "registration_failed",
+        response: registerRes.body,
+        settings,
+      }, registerRes.ok ? 200 : 400);
     }
 
     if (action === "connectivity_test_outbound") {

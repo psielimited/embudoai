@@ -213,6 +213,10 @@ type MerchantOnboardingAction =
   | "validate_credentials"
   | "connectivity_test_outbound"
   | "check_inbound_marker"
+  | "get_registration_status"
+  | "request_code"
+  | "verify_code"
+  | "register"
   | "refresh_status";
 
 export function useRunMerchantOnboardingCheck() {
