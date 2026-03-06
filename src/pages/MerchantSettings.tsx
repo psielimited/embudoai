@@ -241,6 +241,7 @@ export default function MerchantSettings() {
   const tokenScopeStatus = toStringOrNull(settingsRecord?.token_scope_status) ?? "unknown";
 
   const registrationReady = isSandbox || phoneRegistrationStatus === "registered";
+  const registrationIncomplete = !isSandbox && phoneRegistrationStatus !== "registered";
   const merchantSetupComplete = Boolean(
     (credsStatus === "pass" || settings?.credentials_valid)
       && (webhookStatus === "pass" || settings?.webhook_challenge_valid)
@@ -518,7 +519,7 @@ export default function MerchantSettings() {
         </Alert>
       )}
 
-      {!isSandbox && isWizardRoute && !merchantSetupComplete && (
+      {isWizardRoute && registrationIncomplete && (
         <Alert>
           <AlertTriangle className="h-4 w-4 text-amber-600" />
           <AlertTitle>Phone registration required</AlertTitle>
