@@ -64,6 +64,26 @@ function graphError(payload: unknown, fallback = "Meta Graph request failed") {
   return msg.slice(0, 500);
 }
 
+function readGraphError(payload: unknown) {
+  const err = payload && typeof payload === "object"
+    ? ((payload as Record<string, unknown>).error as Record<string, unknown> | undefined)
+    : undefined;
+  const code = typeof err?.code === "number" ? err.code : null;
+  const subcode = typeof err?.error_subcode === "number" ? err.error_subcode : null;
+  const title = typeof err?.error_user_title === "string" ? err.error_user_title : "";
+  const message = typeof err?.error_user_msg === "string"
+    ? err.error_user_msg
+    : (typeof err?.message === "string" ? err.message : "");
+  return { code, subcode, title, message };
+}
+
+function isAlreadyVerifiedRequestCodeError(payload: unknown) {
+  const { code, subcode, title, message } = readGraphError(payload);
+  if (code === 136024 && subcode === 2388366) return true;
+  const haystack = `${title} ${message}`.toLowerCase();
+  return haystack.includes("already verified");
+}
+
 function deriveRegistrationStatus(
   codeVerificationStatus: string | null,
   existingStatus: string | null | undefined,
@@ -490,6 +510,46 @@ Deno.serve(async (req) => {
         merchant.whatsapp_access_token!,
         { code_method: codeMethod, language },
       );
+      if (!requestRes.ok && isAlreadyVerifiedRequestCodeError(requestRes.body)) {
+        const statusRes = await graphGet(
+          `${resolvedPhoneNumberId}?fields=code_verification_status`,
+          merchant.whatsapp_access_token!,
+        );
+        const codeVerificationStatus = statusRes.ok
+          ? String(statusRes.body?.code_verification_status ?? "VERIFIED").toUpperCase()
+          : "VERIFIED";
+        const phoneRegistrationStatus = currentSettings?.phone_registration_status === "registered"
+          ? "registered"
+          : "verified_not_registered";
+        const settings = await upsertSettings({
+          token_scope_status: "pass",
+          token_scopes: scopeCheck.scopes,
+          code_verification_status: codeVerificationStatus,
+          phone_registration_status: phoneRegistrationStatus,
+          otp_verified_at: currentSettings?.otp_verified_at ?? now,
+          registration_last_attempt_at: now,
+          registration_checked_at: now,
+          registration_error: null,
+          last_validation_payload: {
+            action: "request_code",
+            mode: "production",
+            checked_at: now,
+            ok: true,
+            already_verified: true,
+            code_method: codeMethod,
+            language,
+            provider_error: requestRes.body,
+          },
+        });
+
+        return json({
+          ok: true,
+          already_verified: true,
+          next_action: "register",
+          response: requestRes.body,
+          settings,
+        });
+      }
       const reqError = requestRes.ok ? null : graphError(requestRes.body);
       const settings = await upsertSettings({
         token_scope_status: "pass",

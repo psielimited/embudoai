@@ -316,8 +316,14 @@ export default function MerchantSettings() {
 
   const onRequestOtp = async () => {
     try {
-      await requestRegistrationCode({ code_method: otpMethod, language: otpLanguage.trim() || "en_US" });
-      toast.success(`OTP requested via ${otpMethod}`);
+      const result = await requestRegistrationCode({ code_method: otpMethod, language: otpLanguage.trim() || "en_US" }) as {
+        already_verified?: boolean;
+      };
+      if (result?.already_verified) {
+        toast.info("Phone already verified. Proceed to the Register step.");
+      } else {
+        toast.success(`OTP requested via ${otpMethod}`);
+      }
     } catch (invokeError) {
       toast.error(invokeError instanceof Error ? invokeError.message : "Failed to request OTP");
     }
