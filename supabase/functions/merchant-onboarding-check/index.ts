@@ -811,7 +811,7 @@ Deno.serve(async (req) => {
         );
         if (tplRes.ok) {
           const templates = Array.isArray(tplRes.body?.data) ? tplRes.body.data : [];
-          const byName = templates.filter((tpl) => String(tpl?.name ?? "").trim().toLowerCase() === templateName.toLowerCase());
+          const byName = templates.filter((tpl: any) => String(tpl?.name ?? "").trim().toLowerCase() === templateName.toLowerCase());
           if (byName.length === 0) {
             precheckBlocked = true;
             sendRes = {
@@ -829,10 +829,10 @@ Deno.serve(async (req) => {
               },
             };
           } else {
-            const byLanguage = byName.filter((tpl) => matchLanguage(extractTemplateLanguage(tpl), templateLanguage));
+            const byLanguage = byName.filter((tpl: any) => matchLanguage(extractTemplateLanguage(tpl), templateLanguage));
             if (byLanguage.length === 0) {
               precheckBlocked = true;
-              const availableLanguages = [...new Set(byName.map((tpl) => extractTemplateLanguage(tpl)).filter(Boolean))];
+              const availableLanguages = [...new Set(byName.map((tpl: any) => extractTemplateLanguage(tpl)).filter(Boolean))];
               sendRes = {
                 ok: false,
                 status: 400,
