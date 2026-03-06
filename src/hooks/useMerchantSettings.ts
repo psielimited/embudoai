@@ -18,6 +18,8 @@ type OnboardingInvokePayload = {
   merchant_id: string;
   action: MerchantOnboardingAction;
   test_to?: string;
+  template_name?: string;
+  template_language?: string;
   expected_from?: string;
   code_method?: "SMS" | "VOICE";
   language?: string;
@@ -84,11 +86,13 @@ export function useMerchantSettings(merchantId?: string) {
   });
 
   const outboundMutation = useMutation({
-    mutationFn: async (testTo?: string) =>
+    mutationFn: async (params?: { testTo?: string; templateName?: string; templateLanguage?: string }) =>
       invokeOnboardingAction({
         merchant_id: merchantId!,
         action: "connectivity_test_outbound",
-        ...(testTo ? { test_to: testTo } : {}),
+        ...(params?.testTo ? { test_to: params.testTo } : {}),
+        ...(params?.templateName ? { template_name: params.templateName } : {}),
+        ...(params?.templateLanguage ? { template_language: params.templateLanguage } : {}),
       }),
     onSuccess: invalidate,
   });
@@ -148,7 +152,8 @@ export function useMerchantSettings(merchantId?: string) {
     settings: query.data ?? null,
     refreshStatus: () => refreshMutation.mutateAsync(),
     validateCredentials: () => validateMutation.mutateAsync(),
-    sendTestOutbound: (testTo?: string) => outboundMutation.mutateAsync(testTo),
+    sendTestOutbound: (params?: { testTo?: string; templateName?: string; templateLanguage?: string }) =>
+      outboundMutation.mutateAsync(params),
     checkInboundMarker: (expectedFrom?: string) => inboundMutation.mutateAsync(expectedFrom),
     getRegistrationStatus: () => registrationStatusMutation.mutateAsync(),
     requestRegistrationCode: (params?: { code_method?: "SMS" | "VOICE"; language?: string }) =>

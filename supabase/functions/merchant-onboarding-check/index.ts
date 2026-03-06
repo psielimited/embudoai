@@ -773,24 +773,103 @@ Deno.serve(async (req) => {
         return json({ ok: false, error: "Missing merchant WhatsApp credentials" }, 400);
       }
 
-      const testPayload = {
+      const requestedTemplateName = typeof body?.template_name === "string"
+        ? body.template_name.trim()
+        : "";
+      const requestedTemplateLanguage = typeof body?.template_language === "string"
+        ? body.template_language.trim()
+        : "";
+
+      let templateName = requestedTemplateName || "hello_world";
+      let templateLanguage = requestedTemplateLanguage || "en_US";
+
+      const buildTemplatePayload = (name: string, languageCode: string) => ({
         messaging_product: "whatsapp",
         to: testTo,
         type: "template",
         template: {
-          name: "hello_world",
-          language: { code: "en_US" },
+          name,
+          language: { code: languageCode },
         },
-      };
+      });
 
-      const sendRes = await graphPost(`${resolvedPhoneNumberId}/messages`, merchant.whatsapp_access_token, testPayload);
+      let sendRes = await graphPost(
+        `${resolvedPhoneNumberId}/messages`,
+        merchant.whatsapp_access_token,
+        buildTemplatePayload(templateName, templateLanguage),
+      );
+      let fallbackUsed = false;
+
+      const sendErrMeta = readGraphError(sendRes.body);
+      if (!sendRes.ok && sendErrMeta.code === 131058 && templateName === "hello_world" && !isSandbox) {
+        type CandidateTemplate = { name: string; language: string };
+        let fallbackTemplate: CandidateTemplate | null = null;
+
+        const summaryTemplates = Array.isArray((currentSettings?.templates_summary as any)?.templates)
+          ? (currentSettings?.templates_summary as any).templates
+          : [];
+        for (const tpl of summaryTemplates) {
+          const status = String(tpl?.status ?? "").toUpperCase();
+          const name = typeof tpl?.name === "string" ? tpl.name.trim() : "";
+          if (status !== "APPROVED" || !name) continue;
+          const rawLanguage = tpl?.language;
+          const language = typeof rawLanguage === "string"
+            ? rawLanguage
+            : (typeof rawLanguage?.code === "string" ? rawLanguage.code : "en_US");
+          fallbackTemplate = { name, language };
+          break;
+        }
+
+        if (!fallbackTemplate && resolvedWabaId) {
+          const tplRes = await graphGet(
+            `${resolvedWabaId}/message_templates?fields=name,status,language&limit=50`,
+            merchant.whatsapp_access_token,
+          );
+          if (tplRes.ok) {
+            const templates = Array.isArray(tplRes.body?.data) ? tplRes.body.data : [];
+            for (const tpl of templates) {
+              const status = String(tpl?.status ?? "").toUpperCase();
+              const name = typeof tpl?.name === "string" ? tpl.name.trim() : "";
+              if (status !== "APPROVED" || !name) continue;
+              const rawLanguage = tpl?.language;
+              const language = typeof rawLanguage === "string"
+                ? rawLanguage
+                : (typeof rawLanguage?.code === "string" ? rawLanguage.code : "en_US");
+              fallbackTemplate = { name, language };
+              break;
+            }
+          }
+        }
+
+        if (fallbackTemplate && fallbackTemplate.name !== templateName) {
+          templateName = fallbackTemplate.name;
+          templateLanguage = fallbackTemplate.language || "en_US";
+          sendRes = await graphPost(
+            `${resolvedPhoneNumberId}/messages`,
+            merchant.whatsapp_access_token,
+            buildTemplatePayload(templateName, templateLanguage),
+          );
+          fallbackUsed = true;
+        }
+      }
+
       const sandboxBlocked = isSandbox && !sendRes.ok && isSandboxBlockedGraphError(sendRes.body);
+      const finalErrMeta = readGraphError(sendRes.body);
+      const templatePolicyBlocked = !sendRes.ok && finalErrMeta.code === 131058;
       const isOk = sendRes.ok || sandboxBlocked;
       const error = sendRes.ok
         ? null
         : sandboxBlocked
           ? encodeSandboxErrorPayload(sendRes.body, "Blocked by Meta sandbox constraints")
-          : JSON.stringify(sendRes.body?.error ?? sendRes.body).slice(0, 500);
+          : templatePolicyBlocked
+            ? JSON.stringify({
+              message: "The selected template is not allowed for this sender. Use an approved WABA template.",
+              code: 131058,
+              template_name: templateName,
+              template_language: templateLanguage,
+              fallback_used: fallbackUsed,
+            }).slice(0, 500)
+            : graphError(sendRes.body);
 
       await supabase.from("channel_events").insert({
         org_id: merchant.org_id,
@@ -804,6 +883,9 @@ Deno.serve(async (req) => {
         payload: {
           function_name: "merchant-onboarding-check",
           action,
+          template_name: templateName,
+          template_language: templateLanguage,
+          fallback_used: fallbackUsed,
           response: sendRes.body,
         },
       });
@@ -824,6 +906,9 @@ Deno.serve(async (req) => {
           checked_at: now,
           ok: sendRes.ok,
           sandbox_blocked: sandboxBlocked,
+          template_name: templateName,
+          template_language: templateLanguage,
+          fallback_used: fallbackUsed,
           error,
           test_to: testTo,
         },
@@ -837,12 +922,24 @@ Deno.serve(async (req) => {
             sandbox_blocked: sandboxBlocked,
             checked_at: now,
             test_to: testTo,
+            template_name: templateName,
+            template_language: templateLanguage,
+            fallback_used: fallbackUsed,
             provider_message_id: sendRes.body?.messages?.[0]?.id ?? null,
           },
         },
       });
 
-      return json({ ok: isOk, send_response: sendRes.body, settings, error, sandbox_blocked: sandboxBlocked });
+      return json({
+        ok: isOk,
+        send_response: sendRes.body,
+        settings,
+        error,
+        sandbox_blocked: sandboxBlocked,
+        fallback_used: fallbackUsed,
+        template_name: templateName,
+        template_language: templateLanguage,
+      });
     }
 
     if (action === "check_inbound_marker") {

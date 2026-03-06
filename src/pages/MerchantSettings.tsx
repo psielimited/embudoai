@@ -146,6 +146,8 @@ export default function MerchantSettings() {
   const { merchantId } = useParams<{ merchantId: string }>();
   const isWizardRoute = location.pathname.startsWith("/onboarding/whatsapp/");
   const [testRecipient, setTestRecipient] = useState("");
+  const [testTemplateName, setTestTemplateName] = useState("hello_world");
+  const [testTemplateLanguage, setTestTemplateLanguage] = useState("en_US");
   const [embeddedStatus, setEmbeddedStatus] = useState<EmbeddedStatus>("idle");
   const [otpCode, setOtpCode] = useState("");
   const [registrationPin, setRegistrationPin] = useState("");
@@ -281,9 +283,15 @@ export default function MerchantSettings() {
       return;
     }
     try {
-      const result = await sendTestOutbound(recipient) as { sandbox_blocked?: boolean };
+      const result = await sendTestOutbound({
+        testTo: recipient,
+        templateName: testTemplateName.trim() || undefined,
+        templateLanguage: testTemplateLanguage.trim() || undefined,
+      }) as { sandbox_blocked?: boolean; fallback_used?: boolean; template_name?: string };
       if (result?.sandbox_blocked) {
         toast.info("Blocked by Meta sandbox constraints; not a code failure.");
+      } else if (result?.fallback_used) {
+        toast.success(`Test outbound sent using fallback template: ${result.template_name}`);
       } else {
         toast.success("Test outbound sent");
       }
@@ -849,7 +857,8 @@ export default function MerchantSettings() {
             <CardDescription>Use your test recipient in E.164 format (example: 18095551234).</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="grid gap-2 sm:max-w-sm">
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid gap-2 sm:max-w-sm">
               <Label htmlFor="testRecipient">Test recipient</Label>
               <Input
                 id="testRecipient"
@@ -857,6 +866,25 @@ export default function MerchantSettings() {
                 onChange={(event) => setTestRecipient(event.target.value)}
                 placeholder="18095551234"
               />
+              </div>
+              <div className="grid gap-2 sm:max-w-sm">
+                <Label htmlFor="testTemplateName">Template name</Label>
+                <Input
+                  id="testTemplateName"
+                  value={testTemplateName}
+                  onChange={(event) => setTestTemplateName(event.target.value)}
+                  placeholder="hello_world"
+                />
+              </div>
+              <div className="grid gap-2 sm:max-w-sm">
+                <Label htmlFor="testTemplateLanguage">Template language</Label>
+                <Input
+                  id="testTemplateLanguage"
+                  value={testTemplateLanguage}
+                  onChange={(event) => setTestTemplateLanguage(event.target.value)}
+                  placeholder="en_US"
+                />
+              </div>
             </div>
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" onClick={() => void onSendTest()} disabled={isSendingTest}>
