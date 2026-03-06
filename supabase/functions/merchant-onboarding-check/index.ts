@@ -793,11 +793,105 @@ Deno.serve(async (req) => {
         },
       });
 
-      let sendRes = await graphPost(
-        `${resolvedPhoneNumberId}/messages`,
-        merchant.whatsapp_access_token,
-        buildTemplatePayload(templateName, templateLanguage),
-      );
+      const extractTemplateLanguage = (rawTemplate: any) => {
+        const rawLanguage = rawTemplate?.language;
+        if (typeof rawLanguage === "string") return rawLanguage.trim();
+        if (typeof rawLanguage?.code === "string") return rawLanguage.code.trim();
+        return "";
+      };
+
+      const matchLanguage = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+
+      let precheckBlocked = false;
+      let sendRes: { ok: boolean; status: number; body: any };
+      if (!isSandbox && resolvedWabaId && templateName !== "hello_world") {
+        const tplRes = await graphGet(
+          `${resolvedWabaId}/message_templates?fields=name,status,language&limit=200`,
+          merchant.whatsapp_access_token,
+        );
+        if (tplRes.ok) {
+          const templates = Array.isArray(tplRes.body?.data) ? tplRes.body.data : [];
+          const byName = templates.filter((tpl) => String(tpl?.name ?? "").trim().toLowerCase() === templateName.toLowerCase());
+          if (byName.length === 0) {
+            precheckBlocked = true;
+            sendRes = {
+              ok: false,
+              status: 400,
+              body: {
+                error: {
+                  message: `Template '${templateName}' was not found in this WhatsApp Business Account.`,
+                  code: "TEMPLATE_NOT_FOUND",
+                  error_data: {
+                    template_name: templateName,
+                    requested_language: templateLanguage,
+                  },
+                },
+              },
+            };
+          } else {
+            const byLanguage = byName.filter((tpl) => matchLanguage(extractTemplateLanguage(tpl), templateLanguage));
+            if (byLanguage.length === 0) {
+              precheckBlocked = true;
+              const availableLanguages = [...new Set(byName.map((tpl) => extractTemplateLanguage(tpl)).filter(Boolean))];
+              sendRes = {
+                ok: false,
+                status: 400,
+                body: {
+                  error: {
+                    message: `Template '${templateName}' does not have language '${templateLanguage}'.`,
+                    code: "TEMPLATE_LANGUAGE_MISMATCH",
+                    error_data: {
+                      template_name: templateName,
+                      requested_language: templateLanguage,
+                      available_languages: availableLanguages,
+                    },
+                  },
+                },
+              };
+            } else {
+              const templateStatus = String(byLanguage[0]?.status ?? "UNKNOWN").toUpperCase();
+              if (templateStatus !== "APPROVED") {
+                precheckBlocked = true;
+                sendRes = {
+                  ok: false,
+                  status: 400,
+                  body: {
+                    error: {
+                      message: `Template '${templateName}' (${templateLanguage}) is ${templateStatus}. Wait until it is APPROVED.`,
+                      code: "TEMPLATE_NOT_APPROVED",
+                      error_data: {
+                        template_name: templateName,
+                        requested_language: templateLanguage,
+                        template_status: templateStatus,
+                      },
+                    },
+                  },
+                };
+              } else {
+                sendRes = await graphPost(
+                  `${resolvedPhoneNumberId}/messages`,
+                  merchant.whatsapp_access_token,
+                  buildTemplatePayload(templateName, templateLanguage),
+                );
+              }
+            }
+          }
+        } else {
+          // If template catalog query fails, proceed with send attempt and let Graph provide canonical error.
+          sendRes = await graphPost(
+            `${resolvedPhoneNumberId}/messages`,
+            merchant.whatsapp_access_token,
+            buildTemplatePayload(templateName, templateLanguage),
+          );
+        }
+      } else {
+        sendRes = await graphPost(
+          `${resolvedPhoneNumberId}/messages`,
+          merchant.whatsapp_access_token,
+          buildTemplatePayload(templateName, templateLanguage),
+        );
+      }
+
       let fallbackUsed = false;
 
       const sendErrMeta = readGraphError(sendRes.body);
@@ -859,6 +953,8 @@ Deno.serve(async (req) => {
       const isOk = sendRes.ok || sandboxBlocked;
       const error = sendRes.ok
         ? null
+        : precheckBlocked
+          ? graphError(sendRes.body)
         : sandboxBlocked
           ? encodeSandboxErrorPayload(sendRes.body, "Blocked by Meta sandbox constraints")
           : templatePolicyBlocked
@@ -906,6 +1002,7 @@ Deno.serve(async (req) => {
           checked_at: now,
           ok: sendRes.ok,
           sandbox_blocked: sandboxBlocked,
+          template_precheck_blocked: precheckBlocked,
           template_name: templateName,
           template_language: templateLanguage,
           fallback_used: fallbackUsed,
@@ -922,6 +1019,7 @@ Deno.serve(async (req) => {
             sandbox_blocked: sandboxBlocked,
             checked_at: now,
             test_to: testTo,
+            template_precheck_blocked: precheckBlocked,
             template_name: templateName,
             template_language: templateLanguage,
             fallback_used: fallbackUsed,
@@ -936,6 +1034,7 @@ Deno.serve(async (req) => {
         settings,
         error,
         sandbox_blocked: sandboxBlocked,
+        precheck_blocked: precheckBlocked,
         fallback_used: fallbackUsed,
         template_name: templateName,
         template_language: templateLanguage,
