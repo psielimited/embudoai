@@ -186,24 +186,67 @@ Deno.serve(async (req) => {
 
     // Look up merchant – avoid maybeSingle() because duplicate phone_number_ids
     // across orgs would cause PostgREST to error instead of returning a row.
+    let merchant: { id: string; org_id: string; whatsapp_app_secret: string | null } | null = null;
+
     const { data: merchantRows, error: merchantErr } = await supabase
       .from("merchants")
       .select("id, org_id, whatsapp_app_secret")
       .eq("whatsapp_phone_number_id", phoneNumberId)
       .limit(2);
 
-    const merchant = merchantRows?.[0] ?? null;
+    if (!merchantErr && (merchantRows?.length ?? 0) > 0) {
+      merchant = merchantRows?.[0] ?? null;
+      if ((merchantRows?.length ?? 0) > 1) {
+        console.warn("Duplicate whatsapp_phone_number_id detected; using first match", {
+          phone_number_id: phoneNumberId,
+          merchant_ids: merchantRows?.map((m) => m.id),
+        });
+      }
+    }
 
-    if (merchantErr || !merchant) {
-      console.error("Merchant not found for phone_number_id:", phoneNumberId);
+    // Fallback: resolve merchant via merchant_settings phone IDs for newer credential flows
+    // where phone IDs are persisted on settings before merchants table is updated.
+    if (!merchant) {
+      const { data: settingsRows, error: settingsErr } = await supabase
+        .from("merchant_settings")
+        .select("merchant_id, org_id")
+        .or(`whatsapp_phone_number_id.eq.${phoneNumberId},meta_phone_number_id.eq.${phoneNumberId},whatsapp_sandbox_phone_number_id.eq.${phoneNumberId}`)
+        .limit(2);
+
+      if (settingsErr) {
+        console.error("merchant_settings lookup failed for phone_number_id:", phoneNumberId, settingsErr);
+        return json({ ok: true, skipped: true }, 200);
+      }
+
+      if ((settingsRows?.length ?? 0) > 0) {
+        const settingsMatch = settingsRows?.[0];
+        if ((settingsRows?.length ?? 0) > 1) {
+          console.warn("Duplicate merchant_settings phone_number_id detected; using first match", {
+            phone_number_id: phoneNumberId,
+            merchant_ids: settingsRows?.map((row) => row.merchant_id),
+          });
+        }
+
+        const { data: merchantFromSettings, error: merchantFromSettingsErr } = await supabase
+          .from("merchants")
+          .select("id, org_id, whatsapp_app_secret")
+          .eq("id", settingsMatch?.merchant_id)
+          .maybeSingle();
+
+        if (!merchantFromSettingsErr && merchantFromSettings) {
+          merchant = merchantFromSettings;
+        }
+      }
+    }
+
+    if (merchantErr && !merchant) {
+      console.error("Merchant lookup failed for phone_number_id:", phoneNumberId, merchantErr);
       return json({ ok: true, skipped: true }, 200);
     }
 
-    if ((merchantRows?.length ?? 0) > 1) {
-      console.warn("Duplicate whatsapp_phone_number_id detected; using first match", {
-        phone_number_id: phoneNumberId,
-        merchant_ids: merchantRows?.map((m) => m.id),
-      });
+    if (!merchant) {
+      console.error("Merchant not found for phone_number_id:", phoneNumberId);
+      return json({ ok: true, skipped: true }, 200);
     }
 
     // Signature verification

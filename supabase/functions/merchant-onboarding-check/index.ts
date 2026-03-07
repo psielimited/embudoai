@@ -1166,6 +1166,15 @@ Deno.serve(async (req) => {
     if (action === "check_inbound_marker") {
       const expectedFrom = body?.expected_from as string | undefined;
 
+      const { data: latestWebhook } = await supabase
+        .from("channel_events")
+        .select("created_at")
+        .eq("merchant_id", merchant.id)
+        .eq("channel", "whatsapp")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
       let query = supabase
         .from("channel_events")
         .select("id, provider_event_id, created_at, external_contact")
@@ -1198,7 +1207,7 @@ Deno.serve(async (req) => {
         inbound_error: inboundOk ? null : sandboxBlocked
           ? JSON.stringify({ message: "Blocked by Meta sandbox constraints; no inbound marker yet", sandbox_blocked: true, mode: "sandbox" })
           : "No inbound marker found yet",
-        last_webhook_received_at: latest?.created_at ?? null,
+        last_webhook_received_at: latestWebhook?.created_at ?? null,
         last_validation_payload: {
           action: "check_inbound_marker",
           mode: isSandbox ? "sandbox" : "production",
@@ -1206,6 +1215,7 @@ Deno.serve(async (req) => {
           ok: inboundOk,
           sandbox_blocked: sandboxBlocked,
           marker: latest?.provider_event_id ?? null,
+          last_webhook_received_at: latestWebhook?.created_at ?? null,
           channel_event_id: latest?.id ?? null,
           external_contact: latest?.external_contact ?? null,
         },
