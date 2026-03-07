@@ -133,6 +133,18 @@ Use a "known-good demo org" and reset between sessions.
 2. Progress tracking: completed demo steps per user.
 3. Auto-reset scheduler for demo tenant nightly.
 
+## Phase 2 status (implemented)
+- Self-guided overlay component:
+  - `src/components/DemoTourGuide.tsx`
+  - mounted in `src/layouts/DashboardLayout.tsx`
+- Progress tracking persistence:
+  - table migration: `supabase/migrations/20260307133000_demo_tour_progress.sql`
+  - edge function: `supabase/functions/demo-tour-progress`
+- Nightly reset automation scaffold:
+  - scheduler function: `supabase/functions/demo-nightly-reset`
+  - `nightly-analytics-rollup` can invoke it when `DEMO_NIGHTLY_RESET=true`
+  - requires `DEMO_RESET_CRON_SECRET` for secure system invocation
+
 ## Phase 3 - Later (nice to have)
 1. Scenario switcher:
   - high-volume support,

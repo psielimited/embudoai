@@ -23,40 +23,77 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) return json({ error: "Unauthorized" }, 401);
-
-    const userClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
     const service = createClient(supabaseUrl, serviceKey);
-
-    const {
-      data: { user },
-      error: userErr,
-    } = await userClient.auth.getUser();
-    if (userErr || !user) return json({ error: "Unauthorized" }, 401);
 
     const body = await req.json().catch(() => ({}));
     const action = (body?.action as Action | undefined) ?? "seed";
     if (!["seed", "cleanup"].includes(action)) return json({ error: "Invalid action" }, 400);
 
-    const { data: profile } = await service
-      .from("profiles")
-      .select("active_org_id, role")
-      .eq("user_id", user.id)
-      .maybeSingle();
-    const orgId = profile?.active_org_id ?? null;
-    if (!orgId) return json({ error: "No active organization" }, 400);
+    const requestedOrgId = typeof body?.org_id === "string" ? body.org_id : null;
+    const cronSecret = Deno.env.get("DEMO_RESET_CRON_SECRET") ?? "";
+    const incomingCronSecret = req.headers.get("x-demo-cron-secret") ?? "";
+    const isSystemMode = !!cronSecret && incomingCronSecret === cronSecret && !!requestedOrgId;
 
-    const { data: membership } = await service
-      .from("org_members")
-      .select("role")
-      .eq("org_id", orgId)
-      .eq("user_id", user.id)
-      .maybeSingle();
-    const isAdmin = profile?.role === "admin" || membership?.role === "org_admin" || membership?.role === "admin";
-    if (!isAdmin) return json({ error: "Admin access required" }, 403);
+    let orgId: string | null = null;
+    let actorUserId: string | null = null;
+
+    if (isSystemMode) {
+      orgId = requestedOrgId;
+
+      const { data: adminMembership } = await service
+        .from("org_members")
+        .select("user_id")
+        .eq("org_id", orgId)
+        .in("role", ["org_admin", "admin"])
+        .limit(1)
+        .maybeSingle();
+
+      if (adminMembership?.user_id) {
+        actorUserId = adminMembership.user_id;
+      } else {
+        const { data: anyMembership } = await service
+          .from("org_members")
+          .select("user_id")
+          .eq("org_id", orgId)
+          .limit(1)
+          .maybeSingle();
+        actorUserId = anyMembership?.user_id ?? null;
+      }
+
+      if (!actorUserId) return json({ error: "No org member found for seed ownership" }, 400);
+    } else {
+      const authHeader = req.headers.get("Authorization");
+      if (!authHeader?.startsWith("Bearer ")) return json({ error: "Unauthorized" }, 401);
+
+      const userClient = createClient(supabaseUrl, supabaseAnonKey, {
+        global: { headers: { Authorization: authHeader } },
+      });
+
+      const {
+        data: { user },
+        error: userErr,
+      } = await userClient.auth.getUser();
+      if (userErr || !user) return json({ error: "Unauthorized" }, 401);
+
+      actorUserId = user.id;
+
+      const { data: profile } = await service
+        .from("profiles")
+        .select("active_org_id, role")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      orgId = profile?.active_org_id ?? null;
+      if (!orgId) return json({ error: "No active organization" }, 400);
+
+      const { data: membership } = await service
+        .from("org_members")
+        .select("role")
+        .eq("org_id", orgId)
+        .eq("user_id", user.id)
+        .maybeSingle();
+      const isAdmin = profile?.role === "admin" || membership?.role === "org_admin" || membership?.role === "admin";
+      if (!isAdmin) return json({ error: "Admin access required" }, 403);
+    }
 
     const seedContact = "18095550001";
     const seedMerchantName = "DEV Merchant";
@@ -316,7 +353,7 @@ Deno.serve(async (req) => {
           source: "whatsapp",
           status: "open",
           stage_id: stageLeadId,
-          owner_user_id: user.id,
+          owner_user_id: actorUserId,
         })
         .select("id")
         .single();
@@ -342,7 +379,7 @@ Deno.serve(async (req) => {
           phones: [seedContact],
           emails: ["dev-contact@example.com"],
           tags: ["seeded", "validation"],
-          owner_user_id: user.id,
+          owner_user_id: actorUserId,
         })
         .select("id")
         .single();
@@ -387,7 +424,7 @@ Deno.serve(async (req) => {
           amount: 1200,
           expected_close_date: new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10),
           status: "open",
-          owner_user_id: user.id,
+          owner_user_id: actorUserId,
         })
         .select("id")
         .single();
@@ -434,7 +471,7 @@ Deno.serve(async (req) => {
           ai_status: "ready",
           contact_id: contactId,
           opportunity_id: opportunityId,
-          owner_user_id: user.id,
+          owner_user_id: actorUserId,
         })
         .select("id")
         .single();
@@ -557,8 +594,8 @@ Deno.serve(async (req) => {
       opportunity_id: opportunityId,
       title: "Follow up seeded opportunity",
       due_at: new Date(Date.now() + 6 * 3600_000).toISOString(),
-      assigned_to: user.id,
-      created_by: user.id,
+      assigned_to: actorUserId,
+      created_by: actorUserId,
       completed: false,
     });
 
@@ -568,7 +605,7 @@ Deno.serve(async (req) => {
       entity_id: opportunityId,
       activity_type: "note",
       description: "Seeded activity note for validation flow",
-      created_by: user.id,
+      created_by: actorUserId,
     });
 
     const { data: run } = await service
@@ -611,6 +648,7 @@ Deno.serve(async (req) => {
     return json({
       ok: true,
       action: "seed",
+      mode: isSystemMode ? "system" : "user",
       org_id: orgId,
       merchant_id: merchantId,
       conversation_id: conversationId,

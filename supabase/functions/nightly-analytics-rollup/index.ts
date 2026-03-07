@@ -92,7 +92,33 @@ Deno.serve(async (req) => {
       totalMetrics += metrics.length;
     }
 
-    return new Response(JSON.stringify({ ok: true, day, metrics_count: totalMetrics }), {
+    const shouldRunDemoReset = (Deno.env.get("DEMO_NIGHTLY_RESET") ?? "false").toLowerCase() === "true";
+    let demoResetResult: unknown = null;
+
+    if (shouldRunDemoReset) {
+      try {
+        const cronSecret = Deno.env.get("DEMO_RESET_CRON_SECRET") ?? "";
+        const authToken = cronSecret || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+        if (authToken) {
+          const resetResp = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/demo-nightly-reset`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${authToken}`,
+            },
+            body: JSON.stringify({ source: "nightly-analytics-rollup" }),
+          });
+          demoResetResult = await resetResp.json().catch(() => ({ ok: false, error: "Invalid JSON response" }));
+        } else {
+          demoResetResult = { ok: false, error: "Missing auth token for demo-nightly-reset" };
+        }
+      } catch (resetErr) {
+        console.error("Demo nightly reset invoke error:", resetErr);
+        demoResetResult = { ok: false, error: "Failed to invoke demo-nightly-reset" };
+      }
+    }
+
+    return new Response(JSON.stringify({ ok: true, day, metrics_count: totalMetrics, demo_reset: demoResetResult }), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
