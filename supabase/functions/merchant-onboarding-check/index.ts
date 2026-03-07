@@ -1171,6 +1171,7 @@ Deno.serve(async (req) => {
         .select("created_at")
         .eq("merchant_id", merchant.id)
         .eq("channel", "whatsapp")
+        .in("event_type", ["message", "status"])
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -1242,6 +1243,8 @@ Deno.serve(async (req) => {
       .from("channel_events")
       .select("created_at")
       .eq("merchant_id", merchant.id)
+      .eq("channel", "whatsapp")
+      .in("event_type", ["message", "status"])
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
