@@ -1,21 +1,27 @@
 
 
-## Add Google Sign-In to Signup Page
+## Current State
 
-### Problem
-The Signup page only offers email/password registration. Users arriving from the pricing flow have no way to sign up with Google, even though the OAuth flow naturally handles account creation.
+- The nightly cron job for `nightly-analytics-rollup` already exists (job #2, schedule `30 2 * * *` — 2:30 AM daily). It calls the edge function with the anon key.
+- The `nightly-analytics-rollup` function already has code to check `DEMO_NIGHTLY_RESET` env var and chain-call `demo-nightly-reset` when true.
+- The `demo-nightly-reset` function validates requests using `DEMO_RESET_CRON_SECRET`.
+- Neither `DEMO_RESET_CRON_SECRET` nor `DEMO_NIGHTLY_RESET` are currently set as secrets.
 
-### What Changes
+## Plan
 
-**File: `src/pages/Signup.tsx`**
-- Import the `lovable` auth module and necessary UI components (Separator)
-- Add a "Continue with Google" button above the email form (matching the Login page pattern)
-- Include a visual divider ("Or continue with email") between the Google button and the form
-- Pass the selected `plan` parameter through Google OAuth so it's preserved after redirect:
-  - Set `redirect_uri` to `/auth/callback?plan={planParam}` so the plan is captured post-OAuth
-  - Store the plan in `localStorage` before initiating OAuth (same as the email flow)
+### 1. Add two secrets
 
-### Technical Details
-- Reuses the same `lovable.auth.signInWithOAuth("google", ...)` pattern from Login.tsx
-- The `AuthCallback` page already reads the `plan` query param and stores it in localStorage, so plan selection is preserved through the OAuth redirect
-- No backend or database changes needed — OAuth signup creates the user automatically
+Use the secrets tool to add:
+- **`DEMO_RESET_CRON_SECRET`** — a strong secret string (user provides or we generate one). Used by `demo-nightly-reset` to authenticate system-level calls.
+- **`DEMO_NIGHTLY_RESET`** — value `true`. Read by `nightly-analytics-rollup` to decide whether to chain the demo reset.
+
+### 2. No code or cron changes needed
+
+- The cron job already invokes `nightly-analytics-rollup` nightly at 2:30 AM.
+- The function already reads `DEMO_NIGHTLY_RESET` and calls `demo-nightly-reset` with `DEMO_RESET_CRON_SECRET` as the bearer token.
+- No edge function code changes required.
+
+### 3. Redeploy affected functions
+
+Redeploy `nightly-analytics-rollup` and `demo-nightly-reset` to ensure they pick up the new secrets at runtime. (Edge functions read secrets via `Deno.env.get()` at invocation time, so redeployment may not be strictly necessary, but is good practice.)
+
