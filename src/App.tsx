@@ -9,6 +9,7 @@ import { PublicLayout } from "@/layouts/PublicLayout";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { PageSkeleton } from "@/components/PageSkeleton";
 import { SubscriptionGuard } from "@/components/SubscriptionGuard";
+import { DemoTourGuide } from "@/components/DemoTourGuide";
 
 function lazyRetry(factory: () => Promise<{ default: React.ComponentType<any> }>) {
   return React.lazy(() =>
@@ -80,7 +81,10 @@ function ProtectedDashboard({
   return (
     <ProtectedRoute>
       <SubscriptionGuard bypass={bypassSubscriptionGuard}>
-        <DashboardLayout>{children}</DashboardLayout>
+        <>
+          <DashboardLayout>{children}</DashboardLayout>
+          <DemoTourGuide />
+        </>
       </SubscriptionGuard>
     </ProtectedRoute>
   );
@@ -89,7 +93,12 @@ function ProtectedDashboard({
 function ProtectedOnboarding({ children }: { children: React.ReactNode }) {
   return (
     <ProtectedRoute>
-      <SubscriptionGuard>{children}</SubscriptionGuard>
+      <SubscriptionGuard>
+        <>
+          {children}
+          <DemoTourGuide />
+        </>
+      </SubscriptionGuard>
     </ProtectedRoute>
   );
 }

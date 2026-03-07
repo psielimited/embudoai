@@ -6,7 +6,6 @@ import { NotificationBell } from "@/components/NotificationBell";
 import { OrgSwitcher } from "@/components/OrgSwitcher";
 import { GlobalPlanBanner } from "@/components/GlobalPlanBanner";
 import { UsageMeter } from "@/components/UsageMeter";
-import { DemoTourGuide } from "@/components/DemoTourGuide";
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -33,7 +32,6 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           <div className="flex-1 p-6">
             {children}
           </div>
-          <DemoTourGuide />
         </main>
       </div>
     </SidebarProvider>
