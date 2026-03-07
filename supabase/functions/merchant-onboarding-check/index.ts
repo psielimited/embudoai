@@ -84,6 +84,99 @@ function isAlreadyVerifiedRequestCodeError(payload: unknown) {
   return haystack.includes("already verified");
 }
 
+function extractPlaceholderCount(text: string) {
+  const matches = [...text.matchAll(/{{\s*(\d+)\s*}}/g)];
+  if (matches.length === 0) return 0;
+  const maxIndex = matches
+    .map((m) => Number.parseInt(m[1] ?? "0", 10))
+    .filter((n) => Number.isFinite(n) && n > 0)
+    .reduce((max, n) => Math.max(max, n), 0);
+  return maxIndex;
+}
+
+function buildTemplateComponents(rawTemplate: any) {
+  const components: any[] = [];
+  const unresolved: string[] = [];
+  const defs = Array.isArray(rawTemplate?.components) ? rawTemplate.components : [];
+
+  for (const def of defs) {
+    const type = String(def?.type ?? "").toUpperCase();
+
+    if (type === "BODY") {
+      const text = typeof def?.text === "string" ? def.text : "";
+      const placeholderCount = extractPlaceholderCount(text);
+      if (placeholderCount > 0) {
+        components.push({
+          type: "body",
+          parameters: Array.from({ length: placeholderCount }, (_, idx) => ({
+            type: "text",
+            text: `sample_${idx + 1}`,
+          })),
+        });
+      }
+      continue;
+    }
+
+    if (type === "HEADER") {
+      const format = String(def?.format ?? "").toUpperCase();
+      if (format === "TEXT") {
+        const text = typeof def?.text === "string" ? def.text : "";
+        const placeholderCount = extractPlaceholderCount(text);
+        if (placeholderCount > 0) {
+          components.push({
+            type: "header",
+            parameters: Array.from({ length: placeholderCount }, (_, idx) => ({
+              type: "text",
+              text: `header_${idx + 1}`,
+            })),
+          });
+        }
+      } else if (format === "IMAGE" || format === "VIDEO" || format === "DOCUMENT") {
+        const mediaType = format.toLowerCase();
+        const link = format === "IMAGE"
+          ? "https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=800&q=80"
+          : format === "VIDEO"
+          ? "https://sample-videos.com/video321/mp4/720/big_buck_bunny_720p_1mb.mp4"
+          : "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf";
+        const mediaPayload = format === "DOCUMENT"
+          ? { link, filename: "demo.pdf" }
+          : { link };
+        components.push({
+          type: "header",
+          parameters: [{ type: mediaType, [mediaType]: mediaPayload }],
+        });
+      } else if (format === "LOCATION") {
+        unresolved.push("HEADER LOCATION format is not auto-supported for connectivity test payloads.");
+      }
+      continue;
+    }
+
+    if (type === "BUTTONS" || type === "BUTTON") {
+      const buttons = Array.isArray(def?.buttons) ? def.buttons : [];
+      for (let idx = 0; idx < buttons.length; idx += 1) {
+        const button = buttons[idx];
+        const buttonType = String(button?.type ?? "").toUpperCase();
+        if (buttonType === "URL") {
+          const url = typeof button?.url === "string" ? button.url : "";
+          if (url.includes("{{")) {
+            components.push({
+              type: "button",
+              subtype: "url",
+              index: String(idx),
+              parameters: [{ type: "text", text: "demo" }],
+            });
+          }
+        } else if (buttonType === "COPY_CODE") {
+          unresolved.push("COPY_CODE button parameters are not auto-supported for connectivity test payloads.");
+        }
+      }
+      continue;
+    }
+  }
+
+  return { components, unresolved };
+}
+
 function deriveRegistrationStatus(
   codeVerificationStatus: string | null,
   existingStatus: string | null | undefined,
@@ -783,13 +876,14 @@ Deno.serve(async (req) => {
       let templateName = requestedTemplateName || "hello_world";
       let templateLanguage = requestedTemplateLanguage || "en_US";
 
-      const buildTemplatePayload = (name: string, languageCode: string) => ({
+      const buildTemplatePayload = (name: string, languageCode: string, components?: any[]) => ({
         messaging_product: "whatsapp",
         to: testTo,
         type: "template",
         template: {
           name,
           language: { code: languageCode },
+          ...(components && components.length > 0 ? { components } : {}),
         },
       });
 
@@ -806,7 +900,7 @@ Deno.serve(async (req) => {
       let sendRes: { ok: boolean; status: number; body: any };
       if (!isSandbox && resolvedWabaId && templateName !== "hello_world") {
         const tplRes = await graphGet(
-          `${resolvedWabaId}/message_templates?fields=name,status,language&limit=200`,
+          `${resolvedWabaId}/message_templates?fields=name,status,language,components&limit=200`,
           merchant.whatsapp_access_token,
         );
         if (tplRes.ok) {
@@ -868,11 +962,37 @@ Deno.serve(async (req) => {
                   },
                 };
               } else {
-                sendRes = await graphPost(
-                  `${resolvedPhoneNumberId}/messages`,
-                  merchant.whatsapp_access_token,
-                  buildTemplatePayload(templateName, templateLanguage),
-                );
+                const templateBuild = buildTemplateComponents(byLanguage[0]);
+                if (templateBuild.unresolved.length > 0) {
+                  precheckBlocked = true;
+                  sendRes = {
+                    ok: false,
+                    status: 400,
+                    body: {
+                      error: {
+                        message:
+                          `Template '${templateName}' requires parameters that cannot be auto-generated for connectivity test.`,
+                        code: "TEMPLATE_PARAMS_REQUIRED",
+                        error_data: {
+                          template_name: templateName,
+                          requested_language: templateLanguage,
+                          unresolved_requirements: templateBuild.unresolved,
+                        },
+                      },
+                    },
+                  };
+                } else {
+                  const outboundPayload = buildTemplatePayload(
+                    templateName,
+                    templateLanguage,
+                    templateBuild.components,
+                  );
+                  sendRes = await graphPost(
+                    `${resolvedPhoneNumberId}/messages`,
+                    merchant.whatsapp_access_token,
+                    outboundPayload,
+                  );
+                }
               }
             }
           }
@@ -896,7 +1016,7 @@ Deno.serve(async (req) => {
 
       const sendErrMeta = readGraphError(sendRes.body);
       if (!sendRes.ok && sendErrMeta.code === 131058 && templateName === "hello_world" && !isSandbox) {
-        type CandidateTemplate = { name: string; language: string };
+        type CandidateTemplate = { name: string; language: string; components: any[] };
         let fallbackTemplate: CandidateTemplate | null = null;
 
         const summaryTemplates = Array.isArray((currentSettings?.templates_summary as any)?.templates)
@@ -910,13 +1030,13 @@ Deno.serve(async (req) => {
           const language = typeof rawLanguage === "string"
             ? rawLanguage
             : (typeof rawLanguage?.code === "string" ? rawLanguage.code : "en_US");
-          fallbackTemplate = { name, language };
+          fallbackTemplate = { name, language, components: [] };
           break;
         }
 
         if (!fallbackTemplate && resolvedWabaId) {
           const tplRes = await graphGet(
-            `${resolvedWabaId}/message_templates?fields=name,status,language&limit=50`,
+            `${resolvedWabaId}/message_templates?fields=name,status,language,components&limit=50`,
             merchant.whatsapp_access_token,
           );
           if (tplRes.ok) {
@@ -929,7 +1049,9 @@ Deno.serve(async (req) => {
               const language = typeof rawLanguage === "string"
                 ? rawLanguage
                 : (typeof rawLanguage?.code === "string" ? rawLanguage.code : "en_US");
-              fallbackTemplate = { name, language };
+              const templateBuild = buildTemplateComponents(tpl);
+              if (templateBuild.unresolved.length > 0) continue;
+              fallbackTemplate = { name, language, components: templateBuild.components };
               break;
             }
           }
@@ -941,7 +1063,7 @@ Deno.serve(async (req) => {
           sendRes = await graphPost(
             `${resolvedPhoneNumberId}/messages`,
             merchant.whatsapp_access_token,
-            buildTemplatePayload(templateName, templateLanguage),
+            buildTemplatePayload(templateName, templateLanguage, fallbackTemplate.components),
           );
           fallbackUsed = true;
         }
