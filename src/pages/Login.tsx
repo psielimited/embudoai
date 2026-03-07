@@ -1,10 +1,9 @@
 import { useState } from "react";
 import { Link, Navigate } from "react-router-dom";
-import { MessageSquare, Mail, Lock, Loader2 } from "lucide-react";
+import { Loader2, Mail, Lock, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,7 +21,7 @@ export default function Login() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="flex min-h-screen items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
@@ -86,82 +85,136 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <div className="mx-auto mb-4 w-12 h-12 rounded-xl bg-primary flex items-center justify-center">
-            <MessageSquare className="h-6 w-6 text-primary-foreground" />
-          </div>
-          <CardTitle className="text-2xl">Embudex</CardTitle>
-          <CardDescription>Sign in to your dashboard</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button
-            variant="outline"
-            className="w-full mb-4"
-            onClick={handleGoogleSignIn}
-            disabled={isGoogleLoading}
-          >
-            {isGoogleLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-            Continue with Google
-          </Button>
-
-          <div className="relative mb-4">
-            <div className="absolute inset-0 flex items-center">
-              <Separator className="w-full" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card px-2 text-muted-foreground">Or continue with email</span>
-            </div>
-          </div>
-
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="login-email">Email</Label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="login-email"
-                  type="email"
-                  placeholder="admin@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="pl-10"
-                  required
-                />
+    <div className="auth-shell">
+      <div className="auth-frame">
+        <section className="auth-form-panel">
+          <div className="auth-form-wrap">
+            <div className="mb-10 text-center">
+              <div className="mx-auto mb-6 flex h-12 w-12 items-center justify-center rounded-xl bg-primary">
+                <MessageSquare className="h-6 w-6 text-primary-foreground" />
               </div>
+              <h1 className="text-3xl font-semibold text-slate-900 sm:text-4xl">Welcome back to Embudex</h1>
+              <p className="mt-3 text-sm text-slate-600">Sign in to continue managing conversations and pipeline in one place.</p>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="login-password">Password</Label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="login-password"
-                  type="password"
-                  placeholder="********"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="pl-10"
-                  required
-                />
-              </div>
-            </div>
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
-              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Sign In
+
+            <Button
+              type="button"
+              variant="outline"
+              className="h-12 w-full rounded-xl border-slate-300 bg-white text-slate-900 hover:bg-slate-100"
+              onClick={handleGoogleSignIn}
+              disabled={isGoogleLoading}
+            >
+              {isGoogleLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Continue with Google
             </Button>
-            {canResendConfirmation && (
-              <Button type="button" variant="secondary" className="w-full" disabled={isResending} onClick={handleResendConfirmation}>
-                {isResending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                Resend confirmation email
+
+            <div className="relative my-8">
+              <div className="absolute inset-0 flex items-center">
+                <Separator className="w-full bg-slate-300" />
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="auth-divider px-3 text-slate-500">Or sign in with email</span>
+              </div>
+            </div>
+
+            <form onSubmit={handleLogin} className="space-y-5">
+              <div className="space-y-2">
+                <Label htmlFor="login-email" className="sr-only">
+                  Email
+                </Label>
+                <div className="relative">
+                  <Mail className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                  <Input
+                    id="login-email"
+                    type="email"
+                    placeholder="E-mail"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="h-14 rounded-xl border-slate-300 bg-white pl-12 text-base"
+                    required
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="login-password" className="sr-only">
+                  Password
+                </Label>
+                <div className="relative">
+                  <Lock className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                  <Input
+                    id="login-password"
+                    type="password"
+                    placeholder="Password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="h-14 rounded-xl border-slate-300 bg-white pl-12 text-base"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="text-center text-sm text-slate-600">
+                Use the same account you used during onboarding.
+              </div>
+
+              <Button type="submit" className="h-14 w-full rounded-xl text-lg font-semibold" disabled={isSubmitting}>
+                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Sign in
               </Button>
-            )}
-            <Button type="button" variant="outline" className="w-full" asChild>
-              <Link to="/pricing">Start Free Trial</Link>
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+
+              {canResendConfirmation && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="h-12 w-full rounded-xl"
+                  disabled={isResending}
+                  onClick={handleResendConfirmation}
+                >
+                  {isResending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Resend confirmation email
+                </Button>
+              )}
+
+              <p className="text-center text-base text-slate-600">
+                Don&apos;t have an account yet?{" "}
+                <Link to="/signup" className="font-semibold text-slate-900 underline underline-offset-4">
+                  Sign up
+                </Link>
+              </p>
+              <p className="text-center text-sm text-slate-500">
+                Need a plan first?{" "}
+                <Link to="/pricing" className="font-medium text-slate-700 underline underline-offset-4">
+                  Start free trial
+                </Link>
+              </p>
+            </form>
+          </div>
+        </section>
+
+        <aside className="auth-visual-panel hidden lg:flex">
+          <div className="auth-shooting-star" />
+          <div className="relative z-10 mx-auto flex h-full w-full max-w-xl flex-col justify-center text-white">
+            <h2 className="mb-8 text-center text-5xl font-semibold leading-tight">
+              Run smarter conversations.
+              <br />
+              Close more deals with Embudex.
+            </h2>
+            <div className="mb-12 text-center text-sm uppercase tracking-[0.3em] text-slate-200/80">CRM + WhatsApp automation</div>
+            <div className="auth-metric-card">
+              <p className="text-xs uppercase tracking-[0.2em] text-slate-300">Qualified pipeline this month</p>
+              <p className="mt-4 text-5xl font-semibold">$48,260</p>
+              <p className="mt-1 text-base text-slate-300">March</p>
+              <div className="mt-10 grid grid-cols-5 text-sm text-slate-300">
+                <span>01</span>
+                <span className="text-center">07</span>
+                <span className="text-center">14</span>
+                <span className="text-center">21</span>
+                <span className="text-right">28</span>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </div>
     </div>
   );
 }

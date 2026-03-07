@@ -103,7 +103,7 @@ const App = () => (
         <Suspense fallback={<PageSkeleton />}>
           <Routes>
             <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<PublicLayout><Signup /></PublicLayout>} />
+            <Route path="/signup" element={<Signup />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/auth/meta/callback" element={<PublicLayout><MetaCallback /></PublicLayout>} />
             <Route path="/" element={<PublicLayout><LandingPage /></PublicLayout>} />
