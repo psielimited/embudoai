@@ -54,8 +54,11 @@ export default function OrgSettings() {
   const upsertOrgSettings = useUpsertOrgSettings();
   const [isSeeding, setIsSeeding] = useState(false);
   const [isCleaning, setIsCleaning] = useState(false);
+  const [isDemoPreviewing, setIsDemoPreviewing] = useState(false);
+  const [isDemoResetting, setIsDemoResetting] = useState(false);
 
   const activeOrg = orgs.find((org) => org.id === activeOrgId);
+  const isDemoOrg = /\bdemo\b/i.test(activeOrg?.name ?? "");
   const isAdminUser = useMemo(() => {
     if (!user) return false;
     const currentMembership = members.find((member) => member.user_id === user.id);
@@ -148,6 +151,42 @@ export default function OrgSettings() {
     } catch (error) {
       console.error(error);
       toast.error(`Failed to ${action} dev validation data`);
+    } finally {
+      setPending(false);
+    }
+  };
+
+  const runDemoReset = async (action: "preview" | "reset") => {
+    if (!activeOrgId) return;
+    const setPending = action === "preview" ? setIsDemoPreviewing : setIsDemoResetting;
+    setPending(true);
+    try {
+      const result = await callEdge<{
+        ok: boolean;
+        action: "preview" | "seed" | "cleanup" | "reset";
+        org_name?: string;
+        counts?: {
+          merchants?: number | null;
+          conversations?: number | null;
+          messages?: number | null;
+          opportunities?: number | null;
+          tasks?: number | null;
+        };
+      }>("demo-reset", { action });
+
+      if (action === "preview") {
+        const c = result.counts ?? {};
+        toast.success(
+          `Demo snapshot: merchants=${c.merchants ?? 0}, conversations=${c.conversations ?? 0}, messages=${c.messages ?? 0}, opportunities=${c.opportunities ?? 0}, tasks=${c.tasks ?? 0}`,
+        );
+      } else {
+        toast.success("Demo data reset complete");
+      }
+
+      await queryClient.invalidateQueries();
+    } catch (error) {
+      console.error(error);
+      toast.error(`Failed to ${action} demo data`);
     } finally {
       setPending(false);
     }
@@ -276,6 +315,38 @@ export default function OrgSettings() {
               onClick={() => void runDevSeed("cleanup")}
             >
               {isCleaning ? "Cleaning..." : "Cleanup Seed Data"}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {isAdminUser && isDemoOrg && (
+        <Card className="mt-6 border-dashed border-primary/40 bg-primary/5">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Database className="h-4 w-4" />
+              Demo Mode Controls
+            </CardTitle>
+            <CardDescription>
+              Preview demo dataset health and run a one-click reset for repeatable sales demos.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={isDemoPreviewing || isDemoResetting}
+              onClick={() => void runDemoReset("preview")}
+            >
+              {isDemoPreviewing ? "Loading..." : "Preview Demo Data"}
+            </Button>
+            <Button
+              type="button"
+              variant="default"
+              disabled={isDemoPreviewing || isDemoResetting}
+              onClick={() => void runDemoReset("reset")}
+            >
+              {isDemoResetting ? "Resetting..." : "Reset Demo Data"}
             </Button>
           </CardContent>
         </Card>

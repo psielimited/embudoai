@@ -11,6 +11,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { useConversationUnreadCounts } from "@/hooks/useConversations";
+import { useActiveOrg, useOrgs } from "@/hooks/useOrg";
 
 const crmNav = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
@@ -49,6 +50,10 @@ type NavItem = {
 export function AppSidebar() {
   const location = useLocation();
   const { data: unreadCounts } = useConversationUnreadCounts();
+  const { data: activeOrgId } = useActiveOrg();
+  const { data: orgs = [] } = useOrgs();
+  const activeOrg = orgs.find((org) => org.id === activeOrgId) ?? null;
+  const isDemoOrg = /\bdemo\b/i.test(activeOrg?.name ?? "");
 
   const renderItems = (items: NavItem[]) =>
     items.map((item) => {
@@ -87,8 +92,15 @@ export function AppSidebar() {
             <MessageSquare className="h-4 w-4 text-primary-foreground" />
           </div>
           <div className="group-data-[collapsible=icon]:hidden">
-            <h1 className="font-semibold text-sidebar-foreground">Embudex</h1>
-            <p className="text-xs text-muted-foreground">CRM Dashboard</p>
+            <div className="flex items-center gap-2">
+              <h1 className="font-semibold text-sidebar-foreground">Embudex</h1>
+              {isDemoOrg && (
+                <Badge variant="secondary" className="h-5 px-1.5 text-[10px] uppercase tracking-wide">
+                  Demo Mode
+                </Badge>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">{activeOrg?.name ?? "CRM Dashboard"}</p>
           </div>
         </div>
       </SidebarHeader>
