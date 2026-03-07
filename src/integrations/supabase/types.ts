@@ -918,6 +918,47 @@ export type Database = {
           },
         ]
       }
+      demo_tour_progress: {
+        Row: {
+          completed_at: string | null
+          completed_steps: string[]
+          created_at: string
+          id: string
+          last_completed_step: string | null
+          org_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          completed_steps?: string[]
+          created_at?: string
+          id?: string
+          last_completed_step?: string | null
+          org_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          completed_steps?: string[]
+          created_at?: string
+          id?: string
+          last_completed_step?: string | null
+          org_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "demo_tour_progress_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       import_jobs: {
         Row: {
           created_at: string
